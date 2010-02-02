@@ -27,136 +27,92 @@
 """http://developer.valvesoftware.com/wiki/Server_Queries"""
 
 import socket, struct, time
+import StringIO
 
-A2A_PING = 'i'
-A2A_PING_REPLY = 'j'
+class SourceQueryPacket(StringIO.StringIO):
+    # putting and getting values
+    def putByte(self, val):
+        """Put a unsigned 8bit value into the packet."""
+        self.write(struct.pack('<B', val))
 
-class SourceQueryError(Exception): pass
+    def getByte(self):
+        """Get a unsigned 8bit value from the packet."""
+        return struct.unpack('<B', self.read(1))[0]
+
+    def putShort(self, val):
+        """Put a signed 16bit value into the packet."""
+        self.write(struct.pack('<h', val))
+
+    def getShort(self):
+        """Get a signed 16bit value from the packet."""
+        return struct.unpack('<h', self.read(2))[0]
+
+    def putLong(self, val):
+        """Put a signed 32bit value into the packet."""
+        self.write(struct.pack('<l', val))
+
+    def getLong(self):
+        """Get a signed 32bit value from the packet."""
+        return struct.unpack('<l', self.read(4))[0]
+
+    def putFloat(self, val):
+        """Put a floating point value into the packet."""
+        self.write(struct.pack('<f', val))
+
+    def getFloat(self):
+        """Get a floating point value from the packet."""
+        return struct.unpack('<f', self.read(4))[0]
+
+    def putString(self, val):
+        """Put a variable length string into the packet."""
+        self.write(val + '\x00')
+
+    def getString(self):
+        """Get a variable length string from the packet."""
+        val = self.getvalue()
+        start = self.tell()
+        end = val.index('\0', start)
+        val = val[start:end]
+        self.seek(end+1)
+        return val
 
 class SourceQuery(object):
-    packetsize = 1400
-    maxsplit = 1248
-    minsplit = 564
-    whole = -1
-    split = -2
-
-    a2a_ping = 0x69
-
-
-
     def __init__(self, host, port=27015, timeout=1.0):
         self.host = host
         self.port = port
         self.timeout = timeout
-        self.socket = False
-        self.connected = False
-        self.challenge = False
-        self.sendid = 0
-        self.recvid = 0
-
-    def _pack(self, types, values):
-        raw = ''
-
-        for t, v in zip(types, values):
-            if t == 'byte':
-                raw += struct.pack('<B', v)
-            elif t == 'short':
-                raw += struct.pack('<h', v)
-            elif t == 'long':
-                raw += struct.pack('<l', v)
-            elif t == 'float':
-                raw += struct.pack('<f', v)
-            elif t == 'string':
-                raw += v + '\x00'
-
-        return raw
-
-    def _unpack(self, types, raw):
-        values = []
-
-        for t in types:
-            if t == 'byte':
-                values += list(struct.unpack('<B', raw[:1]))
-                raw = raw[1:]
-            elif t == 'short':
-                values += list(struct.unpack('<h', raw[:2]))
-                raw = raw[2:]
-            elif t == 'long':
-                values += list(struct.unpack('<l', raw[:4]))
-                raw = raw[4:]
-            elif t == 'float':
-                values += list(struct.unpack('<f', raw[:4]))
-                raw = raw[4:]
-            elif t == 'string':
-                values += [raw[:raw.index('\x00')]]
-                raw = raw[raw.index('\x00')+1:]
-
-        return (values,raw)
-
-    def connect(self):
-        if not self.connected:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.socket.settimeout(self.timeout)
-            self.socket.connect((self.host, self.port))
-            self.connected = True
-            self.challenge = False
+        self.udp = False
 
     def disconnect(self):
-        if self.connected:
-            self.socket.close()
-            self.socket = False
-            self.connected = False
+        if self.udp:
+            self.udp.close()
+            self.udp = False
 
-    def send(self, message, splitsize=MAXSPLITSIZE):
-        # prepare the message
-        data = WHOLE+message
-
-        # check if we have to split this packet
-        splitsize = min(splitsize, MAXSPLITSIZE)
-        splitsize = max(splitsize, MINSPLITSIZE)
-        total = len(message) / splitsize
-        if len(message) % splitsize:
-            total += 1
-
-        if total == 1:
-            self.socket.send(data)
-
-        #
-        else:
-            print "fooogfofo"
-            self.sendid += 1
-            for x in xrange(total):
-                header = SPLIT + struct.pack("<l", self.sendid) + struct.pack("<b", total) + struct.pack("<b", x) + struct.pack("<h", splitsize)
-                self.socket.send(header+data[:splitsize])
-                data = data[splitsize:]
-
-    def receive(self):
-        chunk = self.socket.recv(PACKETSIZE)
-
-        if chunk.startswith(WHOLE):
-            return chunk[len(WHOLE):]
-
-    def communicate(self, message):
-        self.send(message)
-
-        # However, the reply we receive may be split.
-        chunk = self.socket.recv(1400)
-        if chunk.startswith(WHOLE):
-            return chunk[len(WHOLE):]
+    def connect(self):
+        self.disconnect()
+        self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.udp.settimeout(self.timeout)
+        self.udp.connect((self.host, self.port))
 
     def ping(self):
-        ping = time.time()
-        reply = self.communicate(A2A_PING)
-        print repr(reply)
-        pong = time.time()
-        return pong - ping
+        packet = SourceQueryPacket()
+        packet.putLong(-1)
+        packet.putByte(0x69)
+        self.connect()
+        self.udp.send(packet.getvalue())
+        packet = SourceQueryPacket(self.udp.recv(1400))
+        print repr([packet.getLong(),packet.getByte(),packet.getString()])
 
     def info(self):
-        reply = self.communicate("TSource Engine Query")
-        print repr(reply)
+        packet = SourceQueryPacket()
+        packet.putLong(-1)
+        packet.putByte(ord('T'))
+        packet.putString("Source Engine Query")
+        self.connect()
+        self.udp.send(packet.getvalue())
+        packet = SourceQueryPacket(self.udp.recv(1400))
+        print repr([packet.getLong(),packet.getByte(),packet.getByte(),packet.getString(),packet.getString(),packet.getString(),packet.getString(),packet.getShort(),packet.getByte(),packet.getByte(),packet.getByte(),packet.getByte(),packet.getByte(),packet.getByte(),packet.getByte(),packet.getString(),packet.getByte(),packet.getShort(),packet.getString()])
 
 server = SourceQuery('intermud.de')
-
-print Byte("1")
-#print Byte(struct.pack("<B", 16))
-
+server.ping()
+server.info()
