@@ -98,6 +98,16 @@ class SourceQueryPacket(StringIO.StringIO):
         return val
 
 class SourceQuery(object):
+    """Example usage:
+
+       import SourceQuery
+       server = SourceQuery.SourceQuery('1.2.3.4', 27015)
+       print server.ping()
+       print server.info()
+       print server.player()
+       print server.rules()
+    """
+
     def __init__(self, host, port=27015, timeout=1.0):
         self.host = host
         self.port = port
@@ -255,8 +265,3 @@ class SourceQuery(object):
                     break
 
             return rules
-
-server = SourceQuery('intermud.de')
-print repr(server.info())
-print repr(server.player())
-print repr(server.rules())
