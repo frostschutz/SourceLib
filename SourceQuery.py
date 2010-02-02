@@ -249,24 +249,20 @@ class SourceQuery(object):
 
         self.udp.send(packet.getvalue())
         packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
-	print len(packet.getvalue())
+        print len(packet.getvalue())
 
         # this is our rules
         if packet.getLong() == WHOLE \
                 and packet.getByte() == A2S_RULES_REPLY:
-            rules = []
+            rules = {}
             numrules = packet.getShort()
 
             # TF2 sends incomplete packets, so we have to ignore numrules
             while 1:
                 try:
                     key = packet.getString()
-                    rules.append((key,packet.getString()))
+                    rules[key] = packet.getString()
                 except:
                     break
 
             return rules
-
-server = SourceQuery('intermud.de')
-
-print server.rules()
