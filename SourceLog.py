@@ -53,7 +53,3 @@ class SourceLog(asyncore.dispatcher):
     def handle_write(self):
         print "handle_write"
         pass
-
-server = SourceLog('tfgather.de', 27035, myhost='127.0.0.1', myport=17035)
-
-asyncore.loop()
