@@ -24,3 +24,64 @@
 # THE SOFTWARE.
 #------------------------------------------------------------------------------
 
+"""http://developer.valvesoftware.com/wiki/Source_RCON_Protocol"""
+
+import socket, struct
+import StringIO
+
+SERVERDATA_AUTH = 3
+SERVERDATA_AUTH_RESPONSE = 2
+
+SERVERDATA_EXECCOMMAND = 2
+SERVERDATA_RESPONSE_VALUE = 0
+
+class SourceRconRequest(object):
+    def __init__(self, id=0, type=0, string=''):
+        self.id = 0
+        self.type = 0
+        self.string = ''
+
+    def send(self, socket):
+        data = struct.pack('<l', self.id) + struct.pack('<l', self.type) + self.string + '\x00\x00'
+        socket.send(struct.pack('<l', len(data)) + data)
+
+class SourceRconResponse(object):
+    pass
+
+class SourceRcon(object):
+    def __init__(self, host, port=27015, password='', timeout=1.0):
+        self.host = host
+        self.port = port
+        self.password = password
+        self.timeout = timeout
+        self.tcp = False
+        self.requestid = 0
+
+    def disconnect(self):
+        if self.tcp:
+            self.tcp.close()
+            self.tcp = False
+
+    def connect(self):
+        self.disconnect()
+        self.tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.tcp.settimeout(self.timeout)
+        self.tcp.connect((self.host, self.port))
+        self.auth()
+
+    def auth(self):
+        self.requestid += 1
+        packet = SourceRconRequest(SERVERDATA_AUTH, self.password)
+
+        packet.setId(self.make_requestid())
+        packet.setType(SERVERDATA_AUTH)
+        packet.setString(self.password)
+
+        print repr(packet.getvalue())
+        self.tcp.send(packet.getvalue())
+        response = self.tcp.recv(8192)
+        print repr(response)
+
+server = SourceRcon('intermud.de', password='chwanzuslongus')
+
+server.connect()
