@@ -26,15 +26,17 @@
 
 """http://developer.valvesoftware.com/wiki/Server_Queries"""
 
+#
+# TODO:  Implement split packet handling once TF2 SRCDS is fixed by Valve.
+# TODO:: (Currently TF2 sends incomplete packets instead of splitting them.)
+#
+
 import socket, struct, time
 import StringIO
 
 PACKETSIZE=1400
-MAXSPLITSIZE=1248
-MINSPLITSIZE=564
 
 WHOLE=-1
-SPLIT=-2
 
 # A2A_PING
 A2A_PING = ord('i')
@@ -47,64 +49,52 @@ A2S_INFO_STRING = 'Source Engine Query'
 A2S_INFO_REPLY = ord('I')
 
 # A2S_PLAYER
-A2S_PLAYER = 0x55
-A2S_PLAYER_CHALLENGE = -1
+A2S_PLAYER = ord('U')
 A2S_PLAYER_REPLY = ord('D')
 
 # A2S_RULES
 A2S_RULES = ord('V')
-A2S_RULES_CHALLENGE = -1
 A2S_RULES_REPLY = ord('E')
 
 # S2C_CHALLENGE
+CHALLENGE = -1
 S2C_CHALLENGE = ord('A')
 
 class SourceQueryPacket(StringIO.StringIO):
     # putting and getting values
     def putByte(self, val):
-        """Put a unsigned 8bit value into the packet."""
         self.write(struct.pack('<B', val))
 
     def getByte(self):
-        """Get a unsigned 8bit value from the packet."""
         return struct.unpack('<B', self.read(1))[0]
 
     def putShort(self, val):
-        """Put a signed 16bit value into the packet."""
         self.write(struct.pack('<h', val))
 
     def getShort(self):
-        """Get a signed 16bit value from the packet."""
         return struct.unpack('<h', self.read(2))[0]
 
     def putLong(self, val):
-        """Put a signed 32bit value into the packet."""
         self.write(struct.pack('<l', val))
 
     def getLong(self):
-        """Get a signed 32bit value from the packet."""
         return struct.unpack('<l', self.read(4))[0]
 
     def putFloat(self, val):
-        """Put a floating point value into the packet."""
         self.write(struct.pack('<f', val))
 
     def getFloat(self):
-        """Get a floating point value from the packet."""
         return struct.unpack('<f', self.read(4))[0]
 
     def putString(self, val):
-        """Put a variable length string into the packet."""
         self.write(val + '\x00')
 
     def getString(self):
-        """Get a variable length string from the packet."""
         val = self.getvalue()
         start = self.tell()
         end = val.index('\0', start)
         val = val[start:end]
         self.seek(end+1)
-
         return val
 
 class SourceQuery(object):
@@ -119,11 +109,30 @@ class SourceQuery(object):
             self.udp.close()
             self.udp = False
 
-    def connect(self):
+    def connect(self, challenge=False):
         self.disconnect()
         self.udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udp.settimeout(self.timeout)
         self.udp.connect((self.host, self.port))
+
+        if challenge:
+            return self.challenge()
+
+    def challenge(self):
+        # use A2S_PLAYER to obtain a challenge
+        packet = SourceQueryPacket()
+        packet.putLong(WHOLE)
+        packet.putByte(A2S_PLAYER)
+        packet.putLong(CHALLENGE)
+
+        self.udp.send(packet.getvalue())
+        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
+
+        # this is our challenge packet
+        if packet.getLong() == WHOLE \
+                and packet.getByte() == S2C_CHALLENGE:
+            challenge = packet.getLong()
+            return challenge
 
     def ping(self):
         self.connect()
@@ -186,38 +195,26 @@ class SourceQuery(object):
             return result
 
     def player(self):
-        self.connect()
+        challenge = self.connect(True)
 
-        # we have to obtain a challenge first
+        # now obtain the actual player info
         packet = SourceQueryPacket()
         packet.putLong(WHOLE)
         packet.putByte(A2S_PLAYER)
-        packet.putLong(A2S_PLAYER_CHALLENGE)
+        packet.putLong(challenge)
 
         self.udp.send(packet.getvalue())
-        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
+        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE*4))
 
-        # this is our challenge packet
+        # this is our player info
         if packet.getLong() == WHOLE \
-                and packet.getByte() == S2C_CHALLENGE:
-            challenge = packet.getLong()
+                and packet.getByte() == A2S_PLAYER_REPLY:
+            numplayers = packet.getByte()
 
-            # now obtain the actual player info
-            packet = SourceQueryPacket()
-            packet.putLong(WHOLE)
-            packet.putByte(A2S_PLAYER)
-            packet.putLong(challenge)
+            result = []
 
-            self.udp.send(packet.getvalue())
-            packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
-
-            # this is our player info
-            if packet.getLong() == WHOLE \
-                    and packet.getByte() == A2S_PLAYER_REPLY:
-                numplayers = packet.getByte()
-
-                result = []
-
+            # TF2 32player servers may send an incomplete reply
+            try:
                 for x in xrange(numplayers):
                     player = {}
                     player['index'] = packet.getByte()
@@ -226,110 +223,40 @@ class SourceQuery(object):
                     player['time'] = packet.getFloat()
                     result.append(player)
 
-                return result
+            except:
+                pass
+
+            return result
 
     def rules(self):
-        self.connect()
+        challenge = self.connect(True)
 
-        # we have to obtain a challenge first
+        # now obtain the actual rules
         packet = SourceQueryPacket()
         packet.putLong(WHOLE)
         packet.putByte(A2S_RULES)
-        packet.putLong(A2S_RULES_CHALLENGE)
+        packet.putLong(challenge)
 
         self.udp.send(packet.getvalue())
         packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
 
+        # this is our rules
         if packet.getLong() == WHOLE \
-                and packet.getByte() == S2C_CHALLENGE:
-            challenge = packet.getLong()
+                and packet.getByte() == A2S_RULES_REPLY:
+            rules = []
+            numrules = packet.getShort()
 
-            # now obtain the actual rules
-            packet = SourceQueryPacket()
-            packet.putLong(WHOLE)
-            packet.putByte(A2S_RULES)
-            packet.putLong(challenge)
-
-            self.udp.send(packet.getvalue())
-            packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
-            print repr(packet.getvalue())
-
-            # this is our rules
-            if packet.getLong() == WHOLE \
-                    and packet.getByte() == A2S_RULES_REPLY:
-                rules = []
-                numrules = packet.getShort()
-                rules.append(numrules)
-
-                # specification is wrong, server sends incomplete packet
-                # packet.seek(7)
-
-                while 1:
-                    try:
-                        key = packet.getString()
-                        rules.append((key,packet.getString()))
-                    except:
-                        break
-
-                return rules
-
-    def reverse(self):
-        for x in xrange(256):
-            print "simple", x
-
-            self.connect()
-
-            packet = SourceQueryPacket()
-            packet.putLong(WHOLE)
-            packet.putByte(x)
-            self.udp.send(packet.getvalue())
-
-            try:
-                reply = self.udp.recv(PACKETSIZE)
-                print "got reply", repr(reply)
-            except:
-                print "no reply for simple", x
-
-        for x in xrange(256):
-            print "challenge", x
-            self.connect()
-
-            packet = SourceQueryPacket()
-            packet.putLong(WHOLE)
-            packet.putByte(x)
-            packet.putLong(WHOLE)
-            self.udp.send(packet.getvalue())
-            challenge = False
-
-            try:
-                reply = self.udp.recv(PACKETSIZE)
-                print "got reply", repr(reply)
-                packet = SourceQueryPacket(reply)
-                packet.getLong()
-                packet.getByte()
-                challenge = packet.getLong()
-
-            if challenge:
-                print "retrying query with challenge"
-
-                packet = SourceQueryPacket()
-                packet.putLong(WHOLE)
-                packet.putByte(x)
-                packet.putLong(challenge)
-                self.udp.send(packet.getvalue())
-
+            # TF2 sends incomplete packets, so we have to ignore numrules
+            while 1:
                 try:
-                    reply = self.udp.recv(PACKETSIZE)
-                    print "got reply with challenge", repr(reply)
+                    key = packet.getString()
+                    rules.append((key,packet.getString()))
+                except:
+                    break
 
-            except:
-                print "no reply for challenge", x
-
+            return rules
 
 server = SourceQuery('intermud.de')
-#print server.ping()
-#print server.info()
-#print server.player()
-#print repr(server.rules()), len(server.rules())-1
-
-server.reverse()
+print repr(server.info())
+print repr(server.player())
+print repr(server.rules())
