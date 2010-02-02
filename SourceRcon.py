@@ -60,8 +60,6 @@ class SourceRconResponse(StringIO.StringIO):
                 self.seek(0)
                 break
 
-        print "response is ", len(self.getvalue()), repr(self.getvalue())
-
         result = ''
         length = self.read(4)
 
@@ -71,7 +69,9 @@ class SourceRconResponse(StringIO.StringIO):
             message = self.read(length-8)
             message = message[:message.index('\x00')]
 
-            print "length", length, "requestid", requestid, "cmd", cmd, "message", repr(message)
+            lengths = map(len, message.split("\n"))
+
+            print min(lengths), max(lengths)
 
             if requestid != reqid:
                 return False
@@ -123,11 +123,9 @@ class SourceRcon(object):
         response = SourceRconResponse()
 
         if response.receive(self.tcp, self.reqid) == True:
-            print "Auth successful"
             self.authed = True
         else:
             self.disconnect()
-            print "Auth failed"
 
     def rcon(self, command):
         self.connect()
@@ -145,4 +143,4 @@ class SourceRcon(object):
 
 server = SourceRcon('intermud.de', password='chwanzuslongus')
 
-print server.rcon("cvarlist")
+server.rcon("cvarlist")
