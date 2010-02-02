@@ -36,17 +36,59 @@ SERVERDATA_EXECCOMMAND = 2
 SERVERDATA_RESPONSE_VALUE = 0
 
 class SourceRconRequest(object):
-    def __init__(self, id=0, type=0, string=''):
-        self.id = 0
-        self.type = 0
-        self.string = ''
+    def __init__(self, reqid=0, cmd=0, message=''):
+        self.reqid = reqid
+        self.cmd = cmd
+        self.message = message
 
     def send(self, socket):
-        data = struct.pack('<l', self.id) + struct.pack('<l', self.type) + self.string + '\x00\x00'
+        data = struct.pack('<l', self.reqid) + struct.pack('<l', self.cmd) + self.message + '\x00\x00'
         socket.send(struct.pack('<l', len(data)) + data)
 
-class SourceRconResponse(object):
-    pass
+class SourceRconResponseError(Exception): pass
+
+class SourceRconResponse(StringIO.StringIO):
+    def receive(self, socket, reqid):
+        print "receive", "socket", socket, "reqid", reqid
+
+        # fetch all incoming data
+        while 1:
+            try:
+                data = socket.recv(1024)
+                self.write(data)
+            except:
+                self.seek(0)
+                break
+
+        print "response is ", len(self.getvalue()), repr(self.getvalue())
+
+        result = ''
+        length = self.read(4)
+
+        while length:
+            length = struct.unpack('<l', length)[0]
+            (requestid, cmd) = struct.unpack('<2l', self.read(8))
+            message = self.read(length-8)
+            message = message[:message.index('\x00')]
+
+            print "length", length, "requestid", requestid, "cmd", cmd, "message", repr(message)
+
+            if requestid != reqid:
+                return False
+
+            if cmd == SERVERDATA_AUTH_RESPONSE:
+                return True
+
+            if cmd == SERVERDATA_RESPONSE_VALUE:
+                result += message
+
+            else:
+                return False
+
+            length = self.read(4)
+
+
+        return result
 
 class SourceRcon(object):
     def __init__(self, host, port=27015, password='', timeout=1.0):
@@ -55,12 +97,14 @@ class SourceRcon(object):
         self.password = password
         self.timeout = timeout
         self.tcp = False
-        self.requestid = 0
+        self.authed = False
+        self.reqid = 0
 
     def disconnect(self):
         if self.tcp:
             self.tcp.close()
             self.tcp = False
+            self.auth = False
 
     def connect(self):
         self.disconnect()
@@ -70,18 +114,35 @@ class SourceRcon(object):
         self.auth()
 
     def auth(self):
-        self.requestid += 1
-        packet = SourceRconRequest(SERVERDATA_AUTH, self.password)
+        self.reqid += 1
+        packet = SourceRconRequest(self.reqid,
+                                   SERVERDATA_AUTH,
+                                   self.password)
+        packet.send(self.tcp)
 
-        packet.setId(self.make_requestid())
-        packet.setType(SERVERDATA_AUTH)
-        packet.setString(self.password)
+        response = SourceRconResponse()
 
-        print repr(packet.getvalue())
-        self.tcp.send(packet.getvalue())
-        response = self.tcp.recv(8192)
-        print repr(response)
+        if response.receive(self.tcp, self.reqid) == True:
+            print "Auth successful"
+            self.authed = True
+        else:
+            self.disconnect()
+            print "Auth failed"
+
+    def rcon(self, command):
+        self.connect()
+
+        self.reqid += 1
+
+        packet = SourceRconRequest(self.reqid,
+                                   SERVERDATA_EXECCOMMAND,
+                                   command)
+        packet.send(self.tcp)
+
+        response = SourceRconResponse()
+
+        return response.receive(self.tcp, self.reqid)
 
 server = SourceRcon('intermud.de', password='chwanzuslongus')
 
-server.connect()
+print server.rcon("cvarlist")
