@@ -26,10 +26,10 @@
 
 """http://developer.valvesoftware.com/wiki/Server_Queries"""
 
-#
-# TODO:  Implement split packet handling once TF2 SRCDS is fixed by Valve.
-# TODO:: (Currently TF2 sends incomplete packets instead of splitting them.)
-#
+# TODO:  code cleanup
+
+# TODO:  according to spec, packets may be bzip2 compressed.
+# TODO:: not implemented yet because I couldn't find a server that does this.
 
 import socket, struct, time
 import StringIO
@@ -37,6 +37,7 @@ import StringIO
 PACKETSIZE=1400
 
 WHOLE=-1
+SPLIT=-2
 
 # A2A_PING
 A2A_PING = ord('i')
@@ -97,6 +98,9 @@ class SourceQueryPacket(StringIO.StringIO):
         self.seek(end+1)
         return val
 
+class SourceQueryError(Exception):
+    pass
+
 class SourceQuery(object):
     """Example usage:
 
@@ -128,6 +132,47 @@ class SourceQuery(object):
         if challenge:
             return self.challenge()
 
+    def receive(self):
+        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
+        typ = packet.getLong()
+
+        if typ == WHOLE:
+            return packet
+
+        elif typ == SPLIT:
+            # handle split packets
+            reqid = packet.getLong()
+            total = packet.getByte()
+            num = packet.getByte()
+            splitsize = packet.getShort()
+            result = [0 for x in xrange(total)]
+
+            result[num] = packet.read()
+
+            # fetch all remaining splits
+            while 0 in result:
+                packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
+
+                if packet.getLong() == SPLIT and packet.getLong() == reqid:
+                    total = packet.getByte()
+                    num = packet.getByte()
+                    splitsize = packet.getShort()
+                    result[num] = packet.read()
+
+                else:
+                    raise SourceQueryError('Invalid split packet')
+
+            packet = SourceQueryPacket("".join(result))
+
+            if packet.getLong() == WHOLE:
+                return packet
+
+            else:
+                raise SourceQueryError('Invalid split packet')
+
+        else:
+            raise SourceQueryError("Received invalid packet type %d" % (typ,))
+
     def challenge(self):
         # use A2S_PLAYER to obtain a challenge
         packet = SourceQueryPacket()
@@ -136,11 +181,10 @@ class SourceQuery(object):
         packet.putLong(CHALLENGE)
 
         self.udp.send(packet.getvalue())
-        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
+        packet = self.receive()
 
         # this is our challenge packet
-        if packet.getLong() == WHOLE \
-                and packet.getByte() == S2C_CHALLENGE:
+        if packet.getByte() == S2C_CHALLENGE:
             challenge = packet.getLong()
             return challenge
 
@@ -154,12 +198,11 @@ class SourceQuery(object):
         before = time.time()
 
         self.udp.send(packet.getvalue())
-        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
+        packet = self.receive()
 
         after = time.time()
 
-        if packet.getLong() == WHOLE \
-                and packet.getByte() == A2A_PING_REPLY \
+        if packet.getByte() == A2A_PING_REPLY \
                 and packet.getString() == A2A_PING_REPLY_STRING:
             return after - before
 
@@ -172,10 +215,9 @@ class SourceQuery(object):
         packet.putString(A2S_INFO_STRING)
 
         self.udp.send(packet.getvalue())
-        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
+        packet = self.receive()
 
-        if packet.getLong() == WHOLE \
-                and packet.getByte() == A2S_INFO_REPLY:
+        if packet.getByte() == A2S_INFO_REPLY:
             result = {}
 
             result['version'] = packet.getByte()
@@ -214,11 +256,10 @@ class SourceQuery(object):
         packet.putLong(challenge)
 
         self.udp.send(packet.getvalue())
-        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE*4))
+        packet = self.receive()
 
         # this is our player info
-        if packet.getLong() == WHOLE \
-                and packet.getByte() == A2S_PLAYER_REPLY:
+        if packet.getByte() == A2S_PLAYER_REPLY:
             numplayers = packet.getByte()
 
             result = []
@@ -248,12 +289,10 @@ class SourceQuery(object):
         packet.putLong(challenge)
 
         self.udp.send(packet.getvalue())
-        packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
-        print len(packet.getvalue())
+        packet = self.receive()
 
         # this is our rules
-        if packet.getLong() == WHOLE \
-                and packet.getByte() == A2S_RULES_REPLY:
+        if packet.getByte() == A2S_RULES_REPLY:
             rules = {}
             numrules = packet.getShort()
 
