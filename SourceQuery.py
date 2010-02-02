@@ -249,6 +249,7 @@ class SourceQuery(object):
 
         self.udp.send(packet.getvalue())
         packet = SourceQueryPacket(self.udp.recv(PACKETSIZE))
+	print len(packet.getvalue())
 
         # this is our rules
         if packet.getLong() == WHOLE \
@@ -265,3 +266,7 @@ class SourceQuery(object):
                     break
 
             return rules
+
+server = SourceQuery('intermud.de')
+
+print server.rules()
