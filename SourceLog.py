@@ -24,14 +24,35 @@
 # THE SOFTWARE.
 #------------------------------------------------------------------------------
 
+# TODO:  Support games other than Team Fortress 2
+
+"""http://developer.valvesoftware.com/wiki/HL_Log_Standard"""
+
 import socket, asyncore
 
-class SourceLog(asyncore.dispatcher):
-    def __init__(self, host, port=27015, myhost='127.0.0.1', myport=17015):
+PACKETSIZE=1400
+
+class SourceLogParser(object):
+    def parse(self, line):
+        line = line.strip('\x00\xff\r\n\t ')
+        print "parse", repr(line)
+
+    def parse_file(self, filename):
+        f = open(filename, 'r')
+
+        for line in f:
+            self.parse(line)
+
+class SourceLogListenerError(Exception):
+    pass
+
+class SourceLogListener(asyncore.dispatcher):
+    def __init__(self, local, remote, parser)
         asyncore.dispatcher.__init__(self)
+        self.parser = parser
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.bind((myhost, myport))
-        #self.connect((host, port))
+        self.bind(local)
+        self.connect(remote)
 
     def handle_connect(self):
         print "handle_connect"
@@ -43,8 +64,14 @@ class SourceLog(asyncore.dispatcher):
 
     def handle_read(self):
         print "handle_read"
-        data = self.recv(4096)
-        print repr(data)
+        data = self.recv(PACKETSIZE)
+
+        if data.startswith('\xff\xff\xff\xff') and data.endswith('\n\x00'):
+            self.parser.parse(data)
+
+        else:
+            print "invalid packet", repr(data)
+            raise SourceLogListenerError("Received invalid packet.")
 
     def writable(self):
         print "writable"
