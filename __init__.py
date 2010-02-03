@@ -26,4 +26,4 @@
 
 from SourceQuery import SourceQuery
 from SourceRcon import SourceRcon
-from SourceLog import SourceLog
+# from SourceLog import SourceLog # not yet implemented
