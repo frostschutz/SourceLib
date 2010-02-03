@@ -47,7 +47,7 @@ class SourceLogListenerError(Exception):
     pass
 
 class SourceLogListener(asyncore.dispatcher):
-    def __init__(self, local, remote, parser)
+    def __init__(self, local, remote, parser):
         asyncore.dispatcher.__init__(self)
         self.parser = parser
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
