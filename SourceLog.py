@@ -35,7 +35,7 @@ import asyncore
 PACKETSIZE=1400
 
 retype = re.compile('^(?P<type>RL|L) (?P<rest>.*)$', re.U)
-redate = re.compile('^(?P<day>[0-9]{2})/(?P<month>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): (?P<rest>.*)$', re.U)
+redate = re.compile('^(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): (?P<rest>.*)$', re.U)
 reproperty = re.compile('^(?P<rest>.*) \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)$', re.U)
 
 class SourceLogParser(object):
@@ -65,7 +65,7 @@ class SourceLogParser(object):
             print "fail date"
             return
 
-        self.date = map(int, datematch.group('day', 'month', 'year', 'hour', 'minute', 'second'))
+        self.date = map(int, datematch.group('month', 'day', 'year', 'hour', 'minute', 'second'))
 
         line = datematch.group('rest')
 
