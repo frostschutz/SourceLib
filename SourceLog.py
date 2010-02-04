@@ -37,7 +37,7 @@ PACKETSIZE=1400
 retype = re.compile('^(?P<type>RL|L) (?P<rest>.*)$', re.U)
 redate = re.compile('^(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): (?P<rest>.*)$', re.U)
 reproperty = re.compile('^(?P<rest>.*) \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)$', re.U)
-replayer = re.compile('"(?P<name>.*?)<(?P<uid>.*?)><(?P<steamid>.*?)><(?P<team>.*?)>" (?P<rest>.*)$"', re.U)
+replayer = re.compile('^"(?P<name>.*?)<(?P<uid>.*?)><(?P<steamid>.*?)><(?P<team>.*?)>" (?P<rest>.*)$', re.U)
 
 class SourceLogParser(object):
     def __init__(self):
