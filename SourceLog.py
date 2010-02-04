@@ -34,17 +34,37 @@ import asyncore
 
 PACKETSIZE=1400
 
+# replayer breaks most easily because the log doesn't escape player names.
+# There is nothing we can do about malicious players, but we are restrictive
+# anyway in order to avoid random breakage when someone uses "<> in a name.
+replayerpattern = '(?P<name>.*?)<(?P<uid>[0-9]{1,3}?)><(?P<steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<team>[^<>"]*)>'
+replayer = re.compile('^"'+replayerpattern+'" (?P<rest>.*)$', re.U)
+repureplayer = re.compile('^'+replayerpattern+'$', re.U)
 retype = re.compile('^(?P<type>RL|L) (?P<rest>.*)$', re.U)
 redate = re.compile('^(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): (?P<rest>.*)$', re.U)
 reproperty = re.compile('^(?P<rest>.*) \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)$', re.U)
-replayer = re.compile('^"(?P<name>.*?)<(?P<uid>.*?)><(?P<steamid>.*?)><(?P<team>.*?)>" (?P<rest>.*)$', re.U)
 
+# There is nothing we can do about malicious players, but we are restrictive
 class SourceLogParser(object):
     def __init__(self):
         self.property = False
         self.remote = False
         self.date = False
         self.player = False
+
+    def parse_value(self, key, value):
+        # if value is a player...
+        playermatch = repureplayer.match(value)
+
+        if playermatch:
+            value = (playermatch.group('name'),
+                     int(playermatch.group('uid')),
+                     playermatch.group('steamid'),
+                     playermatch.group('team'))
+
+        # TODO: parse other values?
+
+        self.property[key] = value
 
     def parse(self, line):
         line = line.strip('\x00\xff\r\n\t ')
@@ -80,15 +100,20 @@ class SourceLogParser(object):
                 break
 
             line = propertymatch.group('rest')
-            self.property[propertymatch.group('key')] = propertymatch.group('value')
+            key = propertymatch.group('key')
+            value = propertymatch.group('value')
+            self.parse_value(self, key, value)
 
         self.player = False
 
         playermatch = replayer.match(line)
 
         if playermatch:
-            self.player = playermatch.group('name', 'uid', 'steamid', 'team')
             line = playermatch.group('rest')
+            self.player = (playermatch.group('name'),
+                           int(playermatch.group('uid')),
+                           playermatch.group('steamid'),
+                           playermatch.group('team'))
 
         print "parse", repr(self.remote), repr(self.date), repr(self.property), repr(self.player), repr(line)
 
