@@ -37,12 +37,14 @@ PACKETSIZE=1400
 retype = re.compile('^(?P<type>RL|L) (?P<rest>.*)$', re.U)
 redate = re.compile('^(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): (?P<rest>.*)$', re.U)
 reproperty = re.compile('^(?P<rest>.*) \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)$', re.U)
+replayer = re.compile('"(?P<name>.*?)<(?P<uid>.*?)><(?P<steamid>.*?)><(?P<team>.*?)>" (?P<rest>.*)$"', re.U)
 
 class SourceLogParser(object):
     def __init__(self):
         self.property = False
         self.remote = False
         self.date = False
+        self.player = False
 
     def parse(self, line):
         line = line.strip('\x00\xff\r\n\t ')
@@ -80,7 +82,15 @@ class SourceLogParser(object):
             line = propertymatch.group('rest')
             self.property[propertymatch.group('key')] = propertymatch.group('value')
 
-        print "parse", repr(self.remote), repr(self.date), repr(self.property), line
+        self.player = False
+
+        playermatch = replayer.match(line)
+
+        if playermatch:
+            self.player = playermatch.group('name', 'uid', 'steamid', 'team')
+            line = playermatch.group('rest')
+
+        print "parse", repr(self.remote), repr(self.date), repr(self.property), repr(self.player), repr(line)
 
     def parse_file(self, filename):
         f = open(filename, 'r')
