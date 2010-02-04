@@ -28,14 +28,54 @@
 
 """http://developer.valvesoftware.com/wiki/HL_Log_Standard"""
 
-import socket, asyncore
+import re
+import socket
+import asyncore
 
 PACKETSIZE=1400
 
+retype = re.compile('^(?P<type>RL|L) (?P<rest>.*)$', re.U)
+redate = re.compile('^(?P<day>[0-9]{2})/(?P<month>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): (?P<rest>.*)$', re.U)
+reproperty = re.compile('^(?P<rest>.*) \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)$', re.U)
+
 class SourceLogParser(object):
+    def __init__(self):
+        self.property = False
+        self.remote = False
+        self.date = False
+
     def parse(self, line):
         line = line.strip('\x00\xff\r\n\t ')
         print "parse", repr(line)
+
+        typematch = retype.match(line)
+
+        if not typematch:
+            print "fail type"
+            return
+
+        if typematch.group('type') == 'RL':
+            self.remote = True
+        else:
+            self.remote = False
+
+        datematch = redate.match(typematch.group('rest'))
+
+        if not datematch:
+            print "fail date"
+            return
+
+        self.date = map(int, datematch.group('day', 'month', 'year', 'hour', 'minute', 'second'))
+
+        line = datematch.group('rest')
+
+        self.property = {}
+
+        while propertymatch = reproperty.match(line):
+            line = propertymatch.group('rest')
+            self.property[propertymatch.group('key')] = propertymatch.group('value')
+
+        print "parse", repr(self.remote), repr(self.date), repr(self.property), line
 
     def parse_file(self, filename):
         f = open(filename, 'r')
@@ -55,15 +95,12 @@ class SourceLogListener(asyncore.dispatcher):
         self.connect(remote)
 
     def handle_connect(self):
-        print "handle_connect"
         pass
 
     def handle_close(self):
-        print "handle_close"
         self.close()
 
     def handle_read(self):
-        print "handle_read"
         data = self.recv(PACKETSIZE)
 
         if data.startswith('\xff\xff\xff\xff') and data.endswith('\n\x00'):
@@ -74,9 +111,7 @@ class SourceLogListener(asyncore.dispatcher):
             raise SourceLogListenerError("Received invalid packet.")
 
     def writable(self):
-        print "writable"
         return False
 
     def handle_write(self):
-        print "handle_write"
         pass
