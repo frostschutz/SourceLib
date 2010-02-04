@@ -102,7 +102,7 @@ class SourceLogParser(object):
             line = propertymatch.group('rest')
             key = propertymatch.group('key')
             value = propertymatch.group('value')
-            self.parse_value(self, key, value)
+            self.parse_value(key, value)
 
         self.player = False
 
