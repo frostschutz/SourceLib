@@ -71,7 +71,12 @@ class SourceLogParser(object):
 
         self.property = {}
 
-        while propertymatch = reproperty.match(line):
+        while 1:
+            propertymatch = reproperty.match(line)
+
+            if not propertymatch:
+                break
+
             line = propertymatch.group('rest')
             self.property[propertymatch.group('key')] = propertymatch.group('value')
 
