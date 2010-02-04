@@ -87,7 +87,7 @@ class SourceLogParser(object):
             print "fail date"
             return
 
-        self.date = map(int, datematch.group('month', 'day', 'year', 'hour', 'minute', 'second'))
+        self.date = map(int, datematch.group('year', 'month', 'day', 'hour', 'minute', 'second'))
 
         line = datematch.group('rest')
 
