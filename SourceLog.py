@@ -34,96 +34,91 @@ import asyncore
 
 PACKETSIZE=1400
 
-# replayer breaks most easily because the log doesn't escape player names.
-# There is nothing we can do about malicious players, but we are restrictive
-# anyway in order to avoid random breakage when someone uses "<> in a name.
-replayerpattern = '(?P<name>.*?)<(?P<uid>[0-9]{1,3}?)><(?P<steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<team>[^<>"]*)>'
-replayer = re.compile('^"'+replayerpattern+'" (?P<rest>.*)$', re.U)
-repureplayer = re.compile('^'+replayerpattern+'$', re.U)
-retype = re.compile('^(?P<type>RL|L) (?P<rest>.*)$', re.U)
-redate = re.compile('^(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): (?P<rest>.*)$', re.U)
-reproperty = re.compile('^(?P<rest>.*) \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)$', re.U)
-recoordinates = re.compile('^(?P<x>-?[0-9]+) (?P<y>-?[0-9]+) (?P<z>-?[0-9]+)$', re.U)
+# --- Regular Expressions: ---
+
+TOKEN = {
+    'attacker': '(?P<attacker_name>.*?)<(?P<attacker_uid>[0-9]{1,3}?)><(?P<attacker_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<attacker_team>[^<>"]*)>',
+    'timestamp': '(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): ',
+    'player': '(?P<name>.*?)<(?P<uid>[0-9]{1,3}?)><(?P<steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<team>[^<>"]*)>',
+    'position': '^(?P<x>-?[0-9]+) (?P<y>-?[0-9]+) (?P<z>-?[0-9]+)',
+    'property': ' \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)',
+    'rest': '(?P<rest>.*)',
+    'string': '"(?P<string>[^"]*)"',
+    'type': '(?P<type>RL|L) ',
+    'victim': '(?P<victim_name>.*?)<(?P<victim_uid>[0-9]{1,3}?)><(?P<victim_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<victim_team>[^<>"]*)>',
+}
+
+REHEADER = re.compile('^'+TOKEN['type']+TOKEN['timestamp']+TOKEN['rest']+'$', re.U)
+REPROPERTY = re.compile('^'+TOKEN['rest']+TOKEN['property']+'$', re.U)
+
+RELOG = [
+]
+
+REVALUE = [
+    ['position', re.compile('^'+TOKEN['position']+'$', re.U)],
+    ['player', re.compile('^'+TOKEN['player']+'$', re.U)],
+]
 
 # There is nothing we can do about malicious players, but we are restrictive
 class SourceLogParser(object):
-    def __init__(self):
-        self.property = False
-        self.remote = False
-        self.date = False
-        self.player = False
-
     def parse_value(self, key, value):
-        # if value is a x y z coordinate...
-        coordinatesmatch = recoordinates.match(value)
+        for k, v in REVALUE:
+            match = v.match(value)
 
-        if coordinatesmatch:
-            return map(int, coordinatesmatch.group('x', 'y', 'z'))
-
-        # if value is a player...
-        playermatch = repureplayer.match(value)
-
-        if playermatch:
-            return (playermatch.group('name'),
-                    int(playermatch.group('uid')),
-                    playermatch.group('steamid'),
-                    playermatch.group('team'))
-
-        # TODO: parse other values?
+            if match:
+                r = match.groupdict()
+                r['type'] = k
 
         return value
 
+    def action(self, remote, timestamp, key, value, properties):
+        print "action", repr(remote), repr(timestamp), repr(key), repr(value), repr(properties)
+
     def parse(self, line):
         line = line.strip('\x00\xff\r\n\t ')
+
         print "parse", repr(line)
 
-        typematch = retype.match(line)
+        # parse header (type and date)
+        match = REHEADER.match(line)
 
-        if not typematch:
-            print "fail type"
+        if not match:
+            # invalid log entry
             return
 
-        if typematch.group('type') == 'RL':
-            self.remote = True
-        else:
-            self.remote = False
+        line = match.group('rest')
 
-        datematch = redate.match(typematch.group('rest'))
+        remote = False
+        if match.group('type') == 'RL':
+            remote = True
 
-        if not datematch:
-            print "fail date"
-            return
+        timestamp = map(int, match.group('year', 'month', 'day', 'hour', 'minute', 'second'))
 
-        self.date = map(int, datematch.group('year', 'month', 'day', 'hour', 'minute', 'second'))
-
-        line = datematch.group('rest')
-
-        self.property = {}
+        # parse properties (key "value"), optional
+        properties = {}
 
         while 1:
-            propertymatch = reproperty.match(line)
+            match = REPROPERTY.match(line)
 
-            if not propertymatch:
+            if not match:
                 break
 
-            line = propertymatch.group('rest')
-            key = propertymatch.group('key')
-            value = propertymatch.group('value')
+            line = match.group('rest')
+            key = match.group('key')
+            value = match.group('value')
             value = self.parse_value(key, value)
-            self.property[key] = value
+            properties[key] = value
 
-        self.player = False
+        # parse the log entry
+        for k, v in RELOG:
+            match = v.match(line)
 
-        playermatch = replayer.match(line)
+            if match:
+                self.action(remote, timestamp, k, match.groupdict(), properties)
+                return
 
-        if playermatch:
-            line = playermatch.group('rest')
-            self.player = (playermatch.group('name'),
-                           int(playermatch.group('uid')),
-                           playermatch.group('steamid'),
-                           playermatch.group('team'))
-
-        print "parse", repr(self.remote), repr(self.date), repr(self.property), repr(self.player), repr(line)
+        # not sure what to do here
+        self.unknown_action(remote, timestamp, properties, line)
 
     def parse_file(self, filename):
         f = open(filename, 'r')
