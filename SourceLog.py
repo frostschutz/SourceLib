@@ -120,7 +120,7 @@ class SourceLogParser(object):
         return value
 
     def action(self, remote, timestamp, key, value, properties):
-        print "action", repr(remote), repr(timestamp), repr(key), repr(value), repr(properties)
+        pass
 
     def parse(self, line):
         line = line.strip('\x00\xff\r\n\t ')
