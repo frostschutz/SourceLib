@@ -118,7 +118,7 @@ class SourceLogParser(object):
                 return
 
         # not sure what to do here
-        self.unknown_action(remote, timestamp, properties, line)
+        self.action(remote, timestamp, 'unknown', line, properties)
 
     def parse_file(self, filename):
         f = open(filename, 'r')
