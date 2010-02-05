@@ -63,6 +63,7 @@ TOKEN = {
 
 REHEADER = re.compile('^'+TOKEN['type']+TOKEN['timestamp']+TOKEN['rest']+'$', re.U)
 REPROPERTY = re.compile('^'+TOKEN['rest']+TOKEN['property']+'$', re.U)
+RERULES = re.compile('^"'+TOKEN['key']+'" = "'+TOKEN['value']+'"$', re.U)
 
 RELOG = [
     ['change_name', re.compile('^"'+TOKEN['player']+'" changed name to "'+TOKEN['name']+'"$', re.U)],
@@ -74,7 +75,7 @@ RELOG = [
     ['log_start', re.compile('^Log file started$', re.U)],
     ['log_stop', re.compile('^Log file closed$', re.U)],
     ['map_load', re.compile('^Loading map "'+TOKEN['map']+'"$', re.U)],
-    ['map_start', re.compile['^Started map "'+TOKEN['map']+'"$', re.U)],
+    ['map_start', re.compile('^Started map "'+TOKEN['map']+'"$', re.U)],
     ['rcon', re.compile('^rcon from "'+TOKEN['address']+'": command "'+TOKEN['command']+'"$', re.U)],
     ['rcon_badpw', re.compile('^rcon from "'+TOKEN['address']+'": Bad Password$', re.U)],
     ['say', re.compile('^"'+TOKEN['player']+'" say "'+TOKEN['message']+'"$', re.U)],
@@ -100,6 +101,9 @@ REVALUE = [
 
 # There is nothing we can do about malicious players, but we are restrictive
 class SourceLogParser(object):
+    def __init__(self):
+        self.rules = False
+
     def parse_value(self, key, value):
         for k, v in REVALUE:
             match = v.match(value)
@@ -162,7 +166,27 @@ class SourceLogParser(object):
                 self.action(remote, timestamp, k, match.groupdict(), properties)
                 return
 
-        # not sure what to do here
+        # special case: cvarlist / gamerules
+        if line == 'server cvars start':
+            self.rules = {}
+            return
+
+        if self.rules is not False:
+            if line == 'server cvars end':
+                rules = self.rules
+                self.rules = False
+                self.action(remote, timestamp, 'rules', rules, properties)
+                return
+
+            match = RERULES.match(line)
+
+            if match:
+                key = match.group('key')
+                value = match.group('value')
+                self.rules[key] = value
+                return
+
+        # not sure what else to do here, could be plugin output
         self.action(remote, timestamp, 'unknown', line, properties)
 
     def parse_file(self, filename):
