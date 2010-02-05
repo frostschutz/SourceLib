@@ -54,24 +54,24 @@ class SourceLogParser(object):
         self.player = False
 
     def parse_value(self, key, value):
-        # if value is a player...
-        playermatch = repureplayer.match(value)
-
-        if playermatch:
-            value = (playermatch.group('name'),
-                     int(playermatch.group('uid')),
-                     playermatch.group('steamid'),
-                     playermatch.group('team'))
-
         # if value is a x y z coordinate...
         coordinatesmatch = recoordinates.match(value)
 
         if coordinatesmatch:
-            value = map(int, coordinatesmatch.group('x', 'y', 'z'))
+            return map(int, coordinatesmatch.group('x', 'y', 'z'))
+
+        # if value is a player...
+        playermatch = repureplayer.match(value)
+
+        if playermatch:
+            return (playermatch.group('name'),
+                    int(playermatch.group('uid')),
+                    playermatch.group('steamid'),
+                    playermatch.group('team'))
 
         # TODO: parse other values?
 
-        self.property[key] = value
+        return value
 
     def parse(self, line):
         line = line.strip('\x00\xff\r\n\t ')
@@ -109,7 +109,8 @@ class SourceLogParser(object):
             line = propertymatch.group('rest')
             key = propertymatch.group('key')
             value = propertymatch.group('value')
-            self.parse_value(key, value)
+            value = self.parse_value(key, value)
+            self.property[key] = value
 
         self.player = False
 
