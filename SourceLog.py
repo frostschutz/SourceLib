@@ -63,10 +63,11 @@ class SourceLogParser(object):
                      playermatch.group('steamid'),
                      playermatch.group('team'))
 
+        # if value is a x y z coordinate...
         coordinatesmatch = recoordinates.match(value)
 
         if coordinatesmatch:
-            value = map(int, playermatch.group('x', 'y', 'z'))
+            value = map(int, coordinatesmatch.group('x', 'y', 'z'))
 
         # TODO: parse other values?
 
