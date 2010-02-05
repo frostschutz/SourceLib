@@ -48,7 +48,8 @@ TOKEN = {
     'numplayers': '(?P<numplayers>[0-9]+)',
     'player': '(?P<player_name>.*?)<(?P<player_uid>[0-9]{1,3}?)><(?P<player_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<player_team>[^<>"]*)>',
     'position': '^(?P<x>-?[0-9]+) (?P<y>-?[0-9]+) (?P<z>-?[0-9]+)',
-    'property': ' \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)',
+    'property': ' \((?P<property_key>[^() ]+) "(?P<property_value>[^"]*)"\)',
+    'propertybug': '(?P<rest>.*" disconnected) \((?P<property_key>reason "(?P<proprety_value>[^"]*)',
     'reason': '(?P<reason>.*)',
     'rest': '(?P<rest>.*)',
     'score': '(?P<score>-?[0-9]+)',
@@ -63,6 +64,7 @@ TOKEN = {
 
 REHEADER = re.compile('^'+TOKEN['type']+TOKEN['timestamp']+TOKEN['rest']+'$', re.U)
 REPROPERTY = re.compile('^'+TOKEN['rest']+TOKEN['property']+'$', re.U)
+REPROPERTYBUG = re.compile('^'+TOKEN['propertybug']+'$', re.U)
 RERULES = re.compile('^"'+TOKEN['key']+'" = "'+TOKEN['value']+'"$', re.U)
 
 RELOG = [
@@ -83,6 +85,7 @@ RELOG = [
     ['score', re.compile('^Team "'+TOKEN['team']+'" current score "'+TOKEN['score']+'" with "'+TOKEN['numplayers']+'" players$', re.U)],
     ['score_final', re.compile('^Team "'+TOKEN['team']+'" final score "'+TOKEN['score']+'" with "'+TOKEN['numplayers']+'" players$', re.U)],
     ['server_cvar', re.compile('^server_cvar: "'+TOKEN['key']+'" "'+TOKEN['value']+'"$', re.U)],
+    ['server_message', re.compile('^server_message: "'+TOKEN['message']+'"$', re.U)],
     ['suicide', re.compile('^"'+TOKEN['player']+'" committed suicide with "'+TOKEN['weapon']+'"$', re.U)],
     ['team', re.compile('^"'+TOKEN['player']+'" joined team "'+TOKEN['team']+'"$', re.U)],
     ['trigger', re.compile('^"'+TOKEN['player']+'" triggered "'+TOKEN['trigger']+'"$', re.U)],
@@ -91,6 +94,7 @@ RELOG = [
     ['trigger_team', re.compile('^Team "'+TOKEN['team']+'" triggered "'+TOKEN['trigger']+'"$', re.U)],
     ['trigger_world', re.compile('^World triggered "'+TOKEN['trigger']+'"$', re.U)],
     ['trigger_world_reason', re.compile('^World triggered "'+TOKEN['trigger']+'" reason "'+TOKEN['reason']+'"$', re.U)],
+    ['update', re.compile('^Your server will be restarted on map change\\.$', re.U)],
     ['valid', re.compile('^"'+TOKEN['player']+'" STEAM USERID validated$', re.U)],
 ]
 
@@ -121,8 +125,6 @@ class SourceLogParser(object):
     def parse(self, line):
         line = line.strip('\x00\xff\r\n\t ')
 
-        print "parse", repr(line)
-
         # parse header (type and date)
         match = REHEADER.match(line)
 
@@ -148,15 +150,20 @@ class SourceLogParser(object):
                 break
 
             line = match.group('rest')
-            key = match.group('key')
-            value = match.group('value')
+            key = match.group('property_key')
+            value = match.group('property_value')
             value = self.parse_value(key, value)
             properties[key] = value
 
         # TF2 Bug - should be a property, but ") is missing
-        if line.endswith(' (reason "No Steam logon'):
-            properties['reason'] = 'No Steam logon'
-            line = line[:-len(' (reason "No Steam logon')]
+        match = REPROPERTYBUG.match(line)
+
+        if match:
+            line = match.group('rest')
+            key = match.group('property_key')
+            value = match.group('property_value')
+            value = self.parse_value(key, value)
+            properties[key] = value
 
         # parse the log entry
         for k, v in RELOG:
