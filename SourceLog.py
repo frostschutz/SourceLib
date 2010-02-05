@@ -37,50 +37,55 @@ PACKETSIZE=1400
 # --- Regular Expressions: ---
 
 TOKEN = {
+    'address': '(?P<ip>[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})(|:(?P<port>[0-9]+))',
     'attacker': '(?P<attacker_name>.*?)<(?P<attacker_uid>[0-9]{1,3}?)><(?P<attacker_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<attacker_team>[^<>"]*)>',
-    'timestamp': '(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): ',
+    'class': '(?P<class>[^"]+)',
+    'command': '(?P<command>.*)',
+    'key': '(?P<key>[^"]+)',
+    'message': '(?P<message>.*)',
+    'name': '(?P<name>.*)',
     'player': '(?P<player_name>.*?)<(?P<player_uid>[0-9]{1,3}?)><(?P<player_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<player_team>[^<>"]*)>',
     'position': '^(?P<x>-?[0-9]+) (?P<y>-?[0-9]+) (?P<z>-?[0-9]+)',
     'property': ' \((?P<key>[^() ]+) "(?P<value>[^"]*)"\)',
-    'rest': '(?P<rest>.*)',
-    'key': '(?P<key>[^"]+)',
-    'value': '(?P<value>.*)',
-    'message': '(?P<message>.*)',
-    'command': '(?P<command>.*)',
-    'type': '(?P<type>RL|L) ',
-    'team': '(?P<team>[^"]+)',
-    'class': '(?P<class>[^"]+)',
-    'weapon': '(?P<weapon>[^"]+)',
     'reason': '(?P<reason>.*)',
+    'rest': '(?P<rest>.*)',
+    'team': '(?P<team>[^"]+)',
+    'timestamp': '(?P<month>[0-9]{2})/(?P<day>[0-9]{2})/(?P<year>[0-9]{4}) - (?P<hour>[0-9]{2}):(?P<minute>[0-9]{2}):(?P<second>[0-9]{2}): ',
     'trigger': '(?P<trigger>[^"]+)',
-    'address': '(?P<ip>[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})(|:(?P<port>[0-9]+))',
+    'type': '(?P<type>RL|L) ',
+    'value': '(?P<value>.*)',
     'victim': '(?P<victim_name>.*?)<(?P<victim_uid>[0-9]{1,3}?)><(?P<victim_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<victim_team>[^<>"]*)>',
+    'weapon': '(?P<weapon>[^"]+)',
 }
 
 REHEADER = re.compile('^'+TOKEN['type']+TOKEN['timestamp']+TOKEN['rest']+'$', re.U)
 REPROPERTY = re.compile('^'+TOKEN['rest']+TOKEN['property']+'$', re.U)
 
 RELOG = [
-    ['start_log', re.compile('^Log file started$', re.U)],
+    ['change_name', re.compile('^"'+TOKEN['player']+'" changed name to "'+TOKEN['name']+'"$', re.U)],
+    ['class', re.compile('^"'+TOKEN['player']+'" changed role to "'+TOKEN['class']+'"$', re.U)],
+    ['connect', re.compile('^"'+TOKEN['player']+'" connected, address "'+TOKEN['address']+'"$', re.U)],
+    ['disconnect', re.compile('^"'+TOKEN['player']+'" disconnected$', re.U)],
+    ['enter', re.compile('^"'+TOKEN['player']+'" entered the game$', re.U)],
+    ['kill', re.compile('^"'+TOKEN['attacker']+'" killed "'+TOKEN['victim']+'" with "'+TOKEN['weapon']+'"$', re.U)],
+    ['log_start', re.compile('^Log file started$', re.U)],
+    ['log_stop', re.compile('^Log file closed$', re.U)],
+    ['rcon', re.compile('^rcon from "'+TOKEN['address']+'": command "'+TOKEN['command']+'"$', re.U)],
     ['say', re.compile('^"'+TOKEN['player']+'" say "'+TOKEN['message']+'"$', re.U)],
     ['server_cvar', re.compile('^server_cvar: "'+TOKEN['key']+'" "'+TOKEN['value']+'"$', re.U)],
-    ['rcon', re.compile('^rcon from "'+TOKEN['address']+'": command "'+TOKEN['command']+'"$', re.U)],
-    ['connect', re.compile('^"'+TOKEN['player']+'" connected, address "'+TOKEN['address']+'"$', re.U)],
-    ['valid', re.compile('^"'+TOKEN['player']+'" STEAM USERID validated$', re.U)],
-    ['enter', re.compile('^"'+TOKEN['player']+'" entered the game$', re.U)],
+    ['suicide', re.compile('^"'+TOKEN['player']+'" commited suicide with "'+TOKEN['weapon']+'"$', re.U)],
     ['team', re.compile('^"'+TOKEN['player']+'" joined team "'+TOKEN['team']+'"$', re.U)],
-    ['class', re.compile('^"'+TOKEN['player']+'" changed role to "'+TOKEN['class']+'"$', re.U)],
-    ['disconnect', re.compile('^"'+TOKEN['player']+'" disconnected$', re.U)],
-    ['kill', re.compile('^"'+TOKEN['attacker']+'" killed "'+TOKEN['victim']+'" with "'+TOKEN['weapon']+'"$', re.U)],
     ['trigger', re.compile('^"'+TOKEN['player']+'" triggered "'+TOKEN['trigger']+'"$', re.U)],
-    ['attack_trigger', re.compile('^"'+TOKEN['attacker']+'" triggered "'+TOKEN['trigger']+'" against "'+TOKEN['victim']+'"$', re.U)],
-    ['world_trigger', re.compile('^World triggered "'+TOKEN['trigger']+'"$', re.U)],
-    ['world_trigger_reason', re.compile('^World triggered "'+TOKEN['trigger']+'" reason "'+TOKEN['reason']+'"$', re.U)],
+    ['trigger_attack', re.compile('^"'+TOKEN['attacker']+'" triggered "'+TOKEN['trigger']+'" against "'+TOKEN['victim']+'"$', re.U)],
+    ['trigger_attack_weapon', re.compile('^"'+TOKEN['attacker']+'" triggered "'+TOKEN['trigger']+'" against "'+TOKEN['victim']+'" with "'+TOKEN['weapon']+'"$', re.U)],
+    ['trigger_world', re.compile('^World triggered "'+TOKEN['trigger']+'"$', re.U)],
+    ['trigger_world_reason', re.compile('^World triggered "'+TOKEN['trigger']+'" reason "'+TOKEN['reason']+'"$', re.U)],
+    ['valid', re.compile('^"'+TOKEN['player']+'" STEAM USERID validated$', re.U)],
 ]
 
 REVALUE = [
-    ['position', re.compile('^'+TOKEN['position']+'$', re.U)],
     ['player', re.compile('^'+TOKEN['player']+'$', re.U)],
+    ['position', re.compile('^'+TOKEN['position']+'$', re.U)],
 ]
 
 # There is nothing we can do about malicious players, but we are restrictive
@@ -92,6 +97,7 @@ class SourceLogParser(object):
             if match:
                 r = match.groupdict()
                 r['type'] = k
+                return r
 
         return value
 
