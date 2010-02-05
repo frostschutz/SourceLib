@@ -42,6 +42,7 @@ TOKEN = {
     'class': '(?P<class>[^"]+)',
     'command': '(?P<command>.*)',
     'key': '(?P<key>[^"]+)',
+    'map': '(?P<map>[^"]+)',
     'message': '(?P<message>.*)',
     'name': '(?P<name>.*)',
     'numplayers': '(?P<numplayers>[0-9]+)',
@@ -66,13 +67,16 @@ REPROPERTY = re.compile('^'+TOKEN['rest']+TOKEN['property']+'$', re.U)
 RELOG = [
     ['change_name', re.compile('^"'+TOKEN['player']+'" changed name to "'+TOKEN['name']+'"$', re.U)],
     ['class', re.compile('^"'+TOKEN['player']+'" changed role to "'+TOKEN['class']+'"$', re.U)],
-    ['connect', re.compile('^"'+TOKEN['player']+'" connected, address "'+TOKEN['address']+'"$', re.U)],
+    ['connect', re.compile('^"'+TOKEN['player']+'" connected, address "(none|'+TOKEN['address']+')"$', re.U)],
     ['disconnect', re.compile('^"'+TOKEN['player']+'" disconnected$', re.U)],
     ['enter', re.compile('^"'+TOKEN['player']+'" entered the game$', re.U)],
     ['kill', re.compile('^"'+TOKEN['attacker']+'" killed "'+TOKEN['victim']+'" with "'+TOKEN['weapon']+'"$', re.U)],
     ['log_start', re.compile('^Log file started$', re.U)],
     ['log_stop', re.compile('^Log file closed$', re.U)],
+    ['map_load', re.compile('^Loading map "'+TOKEN['map']+'"$', re.U)],
+    ['map_start', re.compile['^Started map "'+TOKEN['map']+'"$', re.U)],
     ['rcon', re.compile('^rcon from "'+TOKEN['address']+'": command "'+TOKEN['command']+'"$', re.U)],
+    ['rcon_badpw', re.compile('^rcon from "'+TOKEN['address']+'": Bad Password$', re.U)],
     ['say', re.compile('^"'+TOKEN['player']+'" say "'+TOKEN['message']+'"$', re.U)],
     ['say_team', re.compile('^"'+TOKEN['player']+'" say_team "'+TOKEN['message']+'"$', re.U)],
     ['score', re.compile('^Team "'+TOKEN['team']+'" current score "'+TOKEN['score']+'" with "'+TOKEN['numplayers']+'" players$', re.U)],
@@ -144,6 +148,11 @@ class SourceLogParser(object):
             value = match.group('value')
             value = self.parse_value(key, value)
             properties[key] = value
+
+        # TF2 Bug - should be a property, but ") is missing
+        if line.endswith(' (reason "No Steam logon'):
+            properties['reason'] = 'No Steam logon'
+            line = line[:-len(' (reason "No Steam logon')]
 
         # parse the log entry
         for k, v in RELOG:
