@@ -103,7 +103,6 @@ REVALUE = [
     ['position', re.compile('^'+TOKEN['position']+'$', re.U)],
 ]
 
-# There is nothing we can do about malicious players, but we are restrictive
 class SourceLogParser(object):
     def __init__(self):
         self.rules = False
@@ -226,7 +225,6 @@ class SourceLogListener(asyncore.dispatcher):
             self.parser.parse(data)
 
         else:
-            print "invalid packet", repr(data)
             raise SourceLogListenerError("Received invalid packet.")
 
     def writable(self):

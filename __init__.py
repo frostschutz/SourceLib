@@ -24,6 +24,6 @@
 # THE SOFTWARE.
 #------------------------------------------------------------------------------
 
-from SourceQuery import SourceQuery
-from SourceRcon import SourceRcon
-# from SourceLog import SourceLog # not yet implemented
+import SourceQuery
+import SourceRcon
+import SourceLog
