@@ -35,8 +35,23 @@ class MasterQuery(DatagramProtocol):
         self.transport.write(struct.pack('B', 0x31)+struct.pack('B', 0xFF)+"0.0.0.0:0\x00"+"\x00")
 
     def datagramReceived(self, data, (host, port)):
-        print "received %r from %s:%d" % (data, host, port)
-        self.transport.write(data, (host, port))
+        ips = []
+
+        if data.startswith('\xff\xff\xff\xff\x66\x0a'):
+            data = data[6:]
+
+            while len(data):
+                (ip, port, data) = (data[0:4], data[4:6], data[6:])
+
+                ip = ".".join(map(str, struct.unpack('BBBB', ip)))
+                port = struct.unpack('!H', port)[0]
+                ips.append((ip,port))
+
+        # get the next batch of ips
+        if ips[-1] != ('0.0.0.0', 0):
+            self.transport.write(struct.pack('B', 0x31)+struct.pack('B', 0xFF)+ips[-1][0]+":"+str(ips[-1][1])+"\x00"+"\x00")
+
+        print ips
 
 if __name__ == "__main__":
     from twisted.internet import reactor
