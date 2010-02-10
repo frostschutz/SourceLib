@@ -48,10 +48,14 @@ class MasterQuery(DatagramProtocol):
                 ips.append((ip,port))
 
         # get the next batch of ips
+        print ips
+
         if ips[-1] != ('0.0.0.0', 0):
+            print "requesting", ips[-1]
             self.transport.write(struct.pack('B', 0x31)+struct.pack('B', 0xFF)+ips[-1][0]+":"+str(ips[-1][1])+"\x00"+"\x00")
 
-        print ips
+            # this doesn't work too well - the server simply does not always send an answer back
+            # unreliable UDP protocol, so we need a timeout & re-request facility here...
 
 if __name__ == "__main__":
     from twisted.internet import reactor
