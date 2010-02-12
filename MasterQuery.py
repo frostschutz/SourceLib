@@ -26,8 +26,8 @@
 
 """http://developer.valvesoftware.com/wiki/Master_Server_Query_Protocol"""
 
-from twisted.internet.protocol import DatagramProtocol
-from twisted.internet import reactor, defer
+QUERY=0x31
+REPLY='\xff\xff\xff\xff\x66\x0a'
 
 US_EAST_COAST = 0x00
 US_WEST_COAST = 0x01
@@ -39,70 +39,197 @@ MIDDLE_EAST = 0x06
 AFRICA = 0x07
 WORLD = 0xFF
 
+from twisted.internet.protocol import DatagramProtocol
+from twisted.internet import reactor, defer
+import struct
+
 class MasterQueryProtocol(DatagramProtocol):
-    def __init__(self, master=('69.28.140.247',27011), region=WORLD, filter={}, retries=10, timeout=1):
+    # --- init ---
+
+    def __init__(self, master, region=WORLD, filter={}, retries=10, timeout=1, deferred=None):
         # settings
         self.master = master
         self.region = region
         self.filter = filter
-        self.retries = retries
         self.timeout = timeout
+        self.deferred = deferred
 
         # state
-        self.call = False
-        self.request = False
+        self.retries = retries
         self.response = []
+        self.callout = False
+        self.done = False
+
+    # --- helpers ---
+
+    def getFilterStr(self):
+        result = ''
+
+        for (key,value) in self.filter.iteritems():
+            if value is True:
+                result += '\\%s\\1' % (key,)
+
+            elif isinstance(value, list) or isinstance(value, tuple):
+                for e in value:
+                    result += '\\%s\\%s' % (key,str(e))
+
+            else:
+                result += '\\%s\\%s' % (key,str(value))
+
+        return result
+
+    def sendRequest(self):
+        print "sendRequest"
+
+        # retry logic
+        if not self.callout or not self.callout.active():
+            self.callout = reactor.callLater(self.timeout, self.retryRequest)
+
+        else:
+            self.callout.reset(self.timeout)
+
+        # send the last ip or 0.0.0.0:0 in the request
+        if not len(self.response):
+            addr = ('0.0.0.0', 0)
+        else:
+            addr = self.response[-1]
+
+        # build the message
+        addrstr = "%s:%d" % addr
+        filterstr = self.getFilterStr()
+        message = struct.pack('BB', QUERY, self.region)
+        message = "%s%s\x00%s\x00" % (message, addrstr, filterstr)
+
+        # send the message
+        self.transport.write(message)
+
+    def retryRequest(self):
+        print "retryRequest"
+
+        if not self.retries > 0:
+            if not self.done:
+                self.failure()
+            return
+
+        self.retries -= 1
+
+        self.sendRequest()
+
+    def success(self):
+        print "success"
+
+        self.done = True
+
+        (d, self.deferred) = (self.deferred, None)
+
+        print repr(self.deferred)
+
+        if self.transport:
+            self.transport.stopListening()
+
+        if self.callout and self.callout.active():
+            self.callout.cancel()
+
+        if d:
+            d.callback(self.response)
+
+    def failure(self):
+        print "failure"
+
+        self.done = True
+
+        (d, self.deferred) = (self.deferred, None)
+
+        print repr(self.deferred)
+
+        if self.transport:
+            self.transport.stopListening()
+
+        if self.callout and self.callout.active():
+            self.callout.cancel()
+
+        #if d:
+        #    d.errback(Exception())
+
+    # --- protocol ---
 
     def startProtocol(self):
-        self.transport.connect(self.master)
-        self.sendRequest(('0.0.0.0',0))
+        self.transport.connect(self.master[0], self.master[1])
+        self.sendRequest()
+
+    def stopProtocol(self):
+        if not self.done:
+            self.failure()
+
+    def connectionRefused(self):
+        if not self.done:
+            self.failure()
 
     def datagramReceived(self, data, addr):
+        print "datagramReceived"
+
         # ignore packets that do not come from our master
+        # this shouldn't happen anyway but you never know
         if addr != self.master:
             return
 
-        print "received %r from %s:%d" % (data, host, port)
+        # ignore packets that do not have the correct header
+        if not data.startswith(REPLY):
+            return
 
-        ips = []
+        data = data[len(REPLY):]
 
-        if data.startswith('\xff\xff\xff\xff\x66\x0a'):
-            data = data[6:]
+        before = len(self.response)
 
-            while len(data):
-                (ip, port, data) = (data[0:4], data[4:6], data[6:])
+        # add all new ips from this batch
+        while len(data):
+            (ip, port, data) = (data[0:4], data[4:6], data[6:])
+            port = struct.unpack('!H', port)[0]
+            ip = ".".join(map(str, struct.unpack('BBBB', ip)))
+            server = (ip, port)
 
-                ip = ".".join(map(str, struct.unpack('BBBB', ip)))
-                port = struct.unpack('!H', port)[0]
-                ips.append((ip,port))
+            # special case: ip is the terminator
+            if server == ('0.0.0.0', 0):
+                if not self.done:
+                    self.success()
+                return
 
-        # get the next batch of ips
-        print ips
+            if not server in self.response:
+                self.response.append(server)
+                self.serverReceived(server)
 
-        if ips[-1] != self.nextip:
-            self.nextip = ips[-1]
+        # request the next batch
+        if len(self.response) > before:
+            self.sendRequest()
 
-        if self.nextip == ('0.0.0.0', 0):
-            self.retry.cancel()
+    # --- callbacks ---
 
-        else:
-            self.requestIp(False)
+    def serverReceived(self, server):
+        """This callback is called for every server we find."""
 
-    def sendRequest(self, addr):
+        print "serverReceived", repr(server)
 
-
-    def requestIp(self, later):
-        if self.nextip:
-            print "requesting", later, self.nextip
-            self.transport.write(struct.pack('B', 0x31)+struct.pack('B', 0xFF)+self.nextip[0]+":"+str(self.nextip[1])+"\x00"+"\x00")
-
-        if later or not self.retry:
-            self.retry = reactor.callLater(0.1, self.requestIp, True)
-
-        elif self.retry.active():
-            self.retry.reset(0.1)
+        pass
 
 if __name__ == "__main__":
     from twisted.internet import reactor
-    reactor.listenUDP(0, MasterQueryProtocol())
+
+    d = defer.Deferred()
+
+    def success(servers):
+        print "Yay, we got", len(servers), "servers!"
+        reactor.stop()
+
+    def fail(e):
+        print "Oh noes, we failed with", repr(e)
+        try:
+            reactor.stop()
+        except:
+            pass
+        return None
+
+    d.addCallback(success)
+    d.addErrback(fail)
+
+    reactor.listenUDP(0, MasterQueryProtocol(master=('69.28.140.247',27011), deferred=d))
     reactor.run()
