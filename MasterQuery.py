@@ -27,14 +27,43 @@
 """http://developer.valvesoftware.com/wiki/Master_Server_Query_Protocol"""
 
 from twisted.internet.protocol import DatagramProtocol
-import struct
+from twisted.internet import reactor, defer
 
-class MasterQuery(DatagramProtocol):
+US_EAST_COAST = 0x00
+US_WEST_COAST = 0x01
+SOUTH_AMERICA = 0x02
+EUROPE = 0x03
+ASIA = 0x04
+AUSTRALIA = 0x05
+MIDDLE_EAST = 0x06
+AFRICA = 0x07
+WORLD = 0xFF
+
+class MasterQueryProtocol(DatagramProtocol):
+    def __init__(self, master=('69.28.140.247',27011), region=WORLD, filter={}, retries=10, timeout=1):
+        # settings
+        self.master = master
+        self.region = region
+        self.filter = filter
+        self.retries = retries
+        self.timeout = timeout
+
+        # state
+        self.call = False
+        self.request = False
+        self.response = []
+
     def startProtocol(self):
-        self.transport.connect('69.28.140.247', 27011)
-        self.transport.write(struct.pack('B', 0x31)+struct.pack('B', 0xFF)+"0.0.0.0:0\x00"+"\x00")
+        self.transport.connect(self.master)
+        self.sendRequest(('0.0.0.0',0))
 
-    def datagramReceived(self, data, (host, port)):
+    def datagramReceived(self, data, addr):
+        # ignore packets that do not come from our master
+        if addr != self.master:
+            return
+
+        print "received %r from %s:%d" % (data, host, port)
+
         ips = []
 
         if data.startswith('\xff\xff\xff\xff\x66\x0a'):
@@ -50,14 +79,30 @@ class MasterQuery(DatagramProtocol):
         # get the next batch of ips
         print ips
 
-        if ips[-1] != ('0.0.0.0', 0):
-            print "requesting", ips[-1]
-            self.transport.write(struct.pack('B', 0x31)+struct.pack('B', 0xFF)+ips[-1][0]+":"+str(ips[-1][1])+"\x00"+"\x00")
+        if ips[-1] != self.nextip:
+            self.nextip = ips[-1]
 
-            # this doesn't work too well - the server simply does not always send an answer back
-            # unreliable UDP protocol, so we need a timeout & re-request facility here...
+        if self.nextip == ('0.0.0.0', 0):
+            self.retry.cancel()
+
+        else:
+            self.requestIp(False)
+
+    def sendRequest(self, addr):
+
+
+    def requestIp(self, later):
+        if self.nextip:
+            print "requesting", later, self.nextip
+            self.transport.write(struct.pack('B', 0x31)+struct.pack('B', 0xFF)+self.nextip[0]+":"+str(self.nextip[1])+"\x00"+"\x00")
+
+        if later or not self.retry:
+            self.retry = reactor.callLater(0.1, self.requestIp, True)
+
+        elif self.retry.active():
+            self.retry.reset(0.1)
 
 if __name__ == "__main__":
     from twisted.internet import reactor
-    reactor.listenUDP(0, MasterQuery())
+    reactor.listenUDP(0, MasterQueryProtocol())
     reactor.run()
