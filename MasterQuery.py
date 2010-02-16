@@ -26,11 +26,19 @@
 
 """http://developer.valvesoftware.com/wiki/Master_Server_Query_Protocol"""
 
+# --- Imports: ---
+
+from twisted.internet.protocol import DatagramProtocol
+from twisted.internet import reactor, defer
+import struct
+
+# --- Constants: ---
+
 QUERY=0x31
 REPLY='\xff\xff\xff\xff\x66\x0a'
 
-US_EAST_COAST = 0x00
-US_WEST_COAST = 0x01
+US_EAST = 0x00
+US_WEST = 0x01
 SOUTH_AMERICA = 0x02
 EUROPE = 0x03
 ASIA = 0x04
@@ -39,13 +47,10 @@ MIDDLE_EAST = 0x06
 AFRICA = 0x07
 WORLD = 0xFF
 
-from twisted.internet.protocol import DatagramProtocol
-from twisted.internet import reactor, defer
-import struct
+# --- Twisted Protocol: ---
 
 class MasterQueryProtocol(DatagramProtocol):
-    # --- init ---
-
+    # Init:
     def __init__(self, master, region=WORLD, filter={}, retries=10, timeout=1, deferred=None):
         # settings
         self.master = master
@@ -56,11 +61,38 @@ class MasterQueryProtocol(DatagramProtocol):
 
         # state
         self.retries = retries
-        self.response = []
+        self.result = []
         self.callout = False
         self.done = False
 
-    # --- helpers ---
+    # Helpers:
+    def success(self):
+        self.done = True
+
+        (d, self.deferred) = (self.deferred, None)
+
+        if self.transport:
+            self.transport.stopListening()
+
+        if self.callout and self.callout.active():
+            self.callout.cancel()
+
+        if d:
+            d.callback(self.result)
+
+    def failure(self):
+        self.done = True
+
+        (d, self.deferred) = (self.deferred, None)
+
+        if self.transport:
+            self.transport.stopListening()
+
+        if self.callout and self.callout.active():
+            self.callout.cancel()
+
+        if d:
+            d.errback(Exception())
 
     def getFilterStr(self):
         result = ''
@@ -79,8 +111,6 @@ class MasterQueryProtocol(DatagramProtocol):
         return result
 
     def sendRequest(self):
-        print "sendRequest"
-
         # retry logic
         if not self.callout or not self.callout.active():
             self.callout = reactor.callLater(self.timeout, self.retryRequest)
@@ -89,10 +119,10 @@ class MasterQueryProtocol(DatagramProtocol):
             self.callout.reset(self.timeout)
 
         # send the last ip or 0.0.0.0:0 in the request
-        if not len(self.response):
+        if not len(self.result):
             addr = ('0.0.0.0', 0)
         else:
-            addr = self.response[-1]
+            addr = self.result[-1]
 
         # build the message
         addrstr = "%s:%d" % addr
@@ -104,8 +134,6 @@ class MasterQueryProtocol(DatagramProtocol):
         self.transport.write(message)
 
     def retryRequest(self):
-        print "retryRequest"
-
         if not self.retries > 0:
             if not self.done:
                 self.failure()
@@ -115,44 +143,7 @@ class MasterQueryProtocol(DatagramProtocol):
 
         self.sendRequest()
 
-    def success(self):
-        print "success"
-
-        self.done = True
-
-        (d, self.deferred) = (self.deferred, None)
-
-        print repr(self.deferred)
-
-        if self.transport:
-            self.transport.stopListening()
-
-        if self.callout and self.callout.active():
-            self.callout.cancel()
-
-        if d:
-            d.callback(self.response)
-
-    def failure(self):
-        print "failure"
-
-        self.done = True
-
-        (d, self.deferred) = (self.deferred, None)
-
-        print repr(self.deferred)
-
-        if self.transport:
-            self.transport.stopListening()
-
-        if self.callout and self.callout.active():
-            self.callout.cancel()
-
-        #if d:
-        #    d.errback(Exception())
-
-    # --- protocol ---
-
+    # Protocol:
     def startProtocol(self):
         self.transport.connect(self.master[0], self.master[1])
         self.sendRequest()
@@ -166,8 +157,6 @@ class MasterQueryProtocol(DatagramProtocol):
             self.failure()
 
     def datagramReceived(self, data, addr):
-        print "datagramReceived"
-
         # ignore packets that do not come from our master
         # this shouldn't happen anyway but you never know
         if addr != self.master:
@@ -179,7 +168,7 @@ class MasterQueryProtocol(DatagramProtocol):
 
         data = data[len(REPLY):]
 
-        before = len(self.response)
+        before = len(self.result)
 
         # add all new ips from this batch
         while len(data):
@@ -194,42 +183,54 @@ class MasterQueryProtocol(DatagramProtocol):
                     self.success()
                 return
 
-            if not server in self.response:
-                self.response.append(server)
+            if not server in self.result:
+                self.result.append(server)
                 self.serverReceived(server)
 
         # request the next batch
-        if len(self.response) > before:
+        if len(self.result) > before:
             self.sendRequest()
 
-    # --- callbacks ---
-
+    # Callbacks:
     def serverReceived(self, server):
         """This callback is called for every server we find."""
-
-        print "serverReceived", repr(server)
-
         pass
 
-if __name__ == "__main__":
-    from twisted.internet import reactor
+# --- Synchronous Interface: ---
 
-    d = defer.Deferred()
+class MasterQuery(object):
+    # Init:
+    def __init__(self, master, retries=10, timeout=1):
+        self.master = master
+        self.retries = retries
+        self.timeout = timeout
+        self.result = None
 
-    def success(servers):
-        print "Yay, we got", len(servers), "servers!"
+    # Callbacks:
+    def success(self, servers):
+        self.result = servers
         reactor.stop()
 
-    def fail(e):
-        print "Oh noes, we failed with", repr(e)
-        try:
-            reactor.stop()
-        except:
-            pass
-        return None
+    def fail(self, e):
+        self.result = None
+        reactor.stop()
+        return e
 
-    d.addCallback(success)
-    d.addErrback(fail)
+    # Query:
+    def query(self, region=WORLD, filter={}):
+        self.result = None
+        d = defer.Deferred()
+        d.addCallback(self.success)
+        d.addErrback(self.fail)
+        protocol = MasterQueryProtocol(self.master, region, filter, deferred=d)
+        reactor.listenUDP(0, protocol)
+        reactor.run()
+        r = self.result
+        self.result = None
+        return r
 
-    reactor.listenUDP(0, MasterQueryProtocol(master=('69.28.140.247',27011), deferred=d))
-    reactor.run()
+# --- Main program: ---
+
+if __name__ == "__main__":
+    # TODO: command line parameters
+    print MasterQuery(('69.28.140.247',27011)).query()
