@@ -217,7 +217,7 @@ class SourceLogProtocol(DatagramProtocol):
             del self.parsers[server]
 
     # Protocol:
-    def DatagramReceived(self, data, addr):
+    def datagramReceived(self, data, addr):
         if addr in self.parsers \
                 and data.startswith('\xff\xff\xff\xff') \
                 and data.endswith('\n\x00'):
