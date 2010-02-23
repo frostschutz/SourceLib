@@ -237,5 +237,9 @@ class SourceLog(object):
 
 if __name__ == "__main__":
     # TODO: command line parameters
-    parser = SourceLogParser()
-    SourceLog(('78.46.96.253', 27020), parser, 17015, '78.46.96.253')
+    class DebugParser(SourceLogParser):
+        def action(self, remote, timestamp, key, value, properties):
+            print repr((remote,timestamp,key,value,properties))
+
+    parser = DebugParser()
+    SourceLog(('78.46.96.253', 27020), parser, 17020, '78.46.96.253')
