@@ -205,10 +205,23 @@ class SourceLogParser(object):
 
 class SourceLogProtocol(DatagramProtocol):
     # Init:
+    def __init__(self, parsers={}):
+        self.parsers = parsers
+
+    # Adding and removing parsers:
+    def addParser(self, addr, parser):
+        self.parsers[addr] = parser
+
+    def delParser(self, addr):
+        if addr in self.parsers:
+            del self.parsers[addr]
 
     # Protocol:
     def DatagramReceived(self, data, addr):
-        break
+        if addr in self.parsers \
+                and data.startswith('\xff\xff\xff\xff') \
+                and data.endswith('\n\x00'):
+            self.parsers[addr].parse(data)
 
 # --- Synchronous Interface: ---
 
@@ -217,39 +230,3 @@ class SourceLogProtocol(DatagramProtocol):
 if __name__ == "__main__":
     # TODO: command line parameters
     pass
-
-
-# --- old asyncore: ---
-
-class SourceLogListenerError(Exception):
-    pass
-
-class SourceLogListener(asyncore.dispatcher):
-    def __init__(self, local, remote, parser):
-        asyncore.dispatcher.__init__(self)
-        self.parser = parser
-        self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.bind(local)
-        self.connect(remote)
-
-    def handle_connect(self):
-        pass
-
-    def handle_close(self):
-        self.close()
-
-    def handle_read(self):
-        data = self.recv(PACKETSIZE)
-
-        if data.startswith('\xff\xff\xff\xff') and data.endswith('\n\x00'):
-            self.parser.parse(data)
-
-        else:
-            raise SourceLogListenerError("Received invalid packet.")
-
-    def writable(self):
-        return False
-
-    def handle_write(self):
-        pass
-
