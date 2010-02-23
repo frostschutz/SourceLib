@@ -237,4 +237,5 @@ class SourceLog(object):
 
 if __name__ == "__main__":
     # TODO: command line parameters
-    pass
+    parser = SourceLogParser()
+    SourceLog(('78.46.96.253', 27020), parser, 17015, '78.46.96.253')
