@@ -209,12 +209,12 @@ class SourceLogProtocol(DatagramProtocol):
         self.parsers = parsers
 
     # Adding and removing parsers:
-    def addParser(self, addr, parser):
-        self.parsers[addr] = parser
+    def addParser(self, server, parser):
+        self.parsers[server] = parser
 
-    def delParser(self, addr):
-        if addr in self.parsers:
-            del self.parsers[addr]
+    def delParser(self, server):
+        if server in self.parsers:
+            del self.parsers[server]
 
     # Protocol:
     def DatagramReceived(self, data, addr):
