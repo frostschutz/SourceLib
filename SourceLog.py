@@ -225,6 +225,14 @@ class SourceLogProtocol(DatagramProtocol):
 
 # --- Synchronous Interface: ---
 
+class SourceLog(object):
+    # Init:
+    def __init__(self, server, parser, port, interface=''):
+        protocol = SourceLogProtocol()
+        protocol.addParser(server, parser)
+        reactor.listenUDP(port, protocol)
+        reactor.run()
+
 # --- Command line interface: ---
 
 if __name__ == "__main__":
