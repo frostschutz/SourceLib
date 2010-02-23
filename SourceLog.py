@@ -28,13 +28,13 @@
 
 """http://developer.valvesoftware.com/wiki/HL_Log_Standard"""
 
+# --- Imports: ---
+
+from twisted.internet.protocol import DatagramProtocol
+from twisted.internet import reactor, defer
 import re
-import socket
-import asyncore
 
-PACKETSIZE=1400
-
-# --- Regular Expressions: ---
+# --- Parser: ---
 
 TOKEN = {
     'address': '(?P<ip>[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})(|:(?P<port>[0-9]+))',
@@ -201,6 +201,26 @@ class SourceLogParser(object):
         for line in f:
             self.parse(line)
 
+# --- Twisted Protocol: ---
+
+class SourceLogProtocol(DatagramProtocol):
+    # Init:
+
+    # Protocol:
+    def DatagramReceived(self, data, addr):
+        break
+
+# --- Synchronous Interface: ---
+
+# --- Command line interface: ---
+
+if __name__ == "__main__":
+    # TODO: command line parameters
+    pass
+
+
+# --- old asyncore: ---
+
 class SourceLogListenerError(Exception):
     pass
 
@@ -232,3 +252,4 @@ class SourceLogListener(asyncore.dispatcher):
 
     def handle_write(self):
         pass
+
