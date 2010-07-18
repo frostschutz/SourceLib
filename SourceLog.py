@@ -28,13 +28,13 @@
 
 """http://developer.valvesoftware.com/wiki/HL_Log_Standard"""
 
-# --- Imports: ---
-
-from twisted.internet.protocol import DatagramProtocol
-from twisted.internet import reactor, defer
 import re
+import socket
+import asyncore
 
-# --- Parser: ---
+PACKETSIZE=1400
+
+# --- Regular Expressions: ---
 
 TOKEN = {
     'address': '(?P<ip>[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})(|:(?P<port>[0-9]+))',
@@ -49,7 +49,7 @@ TOKEN = {
     'player': '(?P<player_name>.*?)<(?P<player_uid>[0-9]{1,3}?)><(?P<player_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<player_team>[^<>"]*)>',
     'position': '^(?P<x>-?[0-9]+) (?P<y>-?[0-9]+) (?P<z>-?[0-9]+)',
     'property': ' \((?P<property_key>[^() ]+) "(?P<property_value>[^"]*)"\)',
-    'propertybug': '(?P<rest>.*" disconnected) \((?P<property_key>reason) "(?P<property_value>[^"]*)',
+    'propertybug': '(?P<rest>.*" disconnected) \((?P<property_key>reason) "(?P<proprety_value>[^"]*)',
     'reason': '(?P<reason>.*)',
     'rest': '(?P<rest>.*)',
     'score': '(?P<score>-?[0-9]+)',
@@ -201,45 +201,34 @@ class SourceLogParser(object):
         for line in f:
             self.parse(line)
 
-# --- Twisted Protocol: ---
+class SourceLogListenerError(Exception):
+    pass
 
-class SourceLogProtocol(DatagramProtocol):
-    # Init:
-    def __init__(self, parsers={}):
-        self.parsers = parsers
+class SourceLogListener(asyncore.dispatcher):
+    def __init__(self, local, remote, parser):
+        asyncore.dispatcher.__init__(self)
+        self.parser = parser
+        self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.bind(local)
+        self.connect(remote)
 
-    # Adding and removing parsers:
-    def addParser(self, server, parser):
-        self.parsers[server] = parser
+    def handle_connect(self):
+        pass
 
-    def delParser(self, server):
-        if server in self.parsers:
-            del self.parsers[server]
+    def handle_close(self):
+        self.close()
 
-    # Protocol:
-    def datagramReceived(self, data, addr):
-        if addr in self.parsers \
-                and data.startswith('\xff\xff\xff\xff') \
-                and data.endswith('\n\x00'):
-            self.parsers[addr].parse(data)
+    def handle_read(self):
+        data = self.recv(PACKETSIZE)
 
-# --- Synchronous Interface: ---
+        if data.startswith('\xff\xff\xff\xff') and data.endswith('\n\x00'):
+            self.parser.parse(data)
 
-class SourceLog(object):
-    # Init:
-    def __init__(self, server, parser, port, interface=''):
-        protocol = SourceLogProtocol()
-        protocol.addParser(server, parser)
-        reactor.listenUDP(port, protocol)
-        reactor.run()
+        else:
+            raise SourceLogListenerError("Received invalid packet.")
 
-# --- Command line interface: ---
+    def writable(self):
+        return False
 
-if __name__ == "__main__":
-    # TODO: command line parameters
-    class DebugParser(SourceLogParser):
-        def action(self, remote, timestamp, key, value, properties):
-            print repr((remote,timestamp,key,value,properties))
-
-    parser = DebugParser()
-    SourceLog(('78.46.96.253', 27020), parser, 17020, '78.46.96.253')
+    def handle_write(self):
+        pass
