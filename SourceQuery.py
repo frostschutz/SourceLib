@@ -81,6 +81,9 @@ class SourceQueryPacket(StringIO.StringIO):
     def getLong(self):
         return struct.unpack('<l', self.read(4))[0]
 
+    def getLongLong(self):
+        return struct.unpack('<Q', self.read(8))[0]
+
     def putFloat(self, val):
         self.write(struct.pack('<f', val))
 
@@ -234,15 +237,26 @@ class SourceQuery(object):
             result['passworded'] = packet.getByte()
             result['secure'] = packet.getByte()
             result['version'] = packet.getString()
-            edf = packet.getByte()
 
-            if edf & 0x80:
-                result['port'] = packet.getShort()
-            if edf & 0x40:
-                result['specport'] = packet.getShort()
-                result['specname'] = packet.getString()
-            if edf & 0x20:
-                result['tag'] = packet.getString()
+            # edf may or may not be present
+            # contents undefined (see wiki page)
+            # this protocol is horrible
+	    try:
+                edf = packet.getByte()
+                result['edf'] = edf
+
+                if edf & 0x80:
+                    result['port'] = packet.getShort()
+                if edf & 0x10:
+                    result['steamid'] = packet.getLongLong()
+                if edf & 0x40:
+                    result['specport'] = packet.getShort()
+                    result['specname'] = packet.getString()
+                if edf & 0x20:
+                    result['tag'] = packet.getString()
+            except:
+                # let's just ignore all errors...
+                pass
 
             return result
 
