@@ -78,6 +78,7 @@ RELOG = [
     ['log_stop', re.compile('^Log file closed$', re.U)],
     ['map_load', re.compile('^Loading map "'+TOKEN['map']+'"$', re.U)],
     ['map_start', re.compile('^Started map "'+TOKEN['map']+'"$', re.U)],
+    ['position_report', re.compile('^"'+TOKEN['player']'" position_report$', re.U)],
     ['rcon', re.compile('^rcon from "'+TOKEN['address']+'": command "'+TOKEN['command']+'"$', re.U)],
     ['rcon_badpw', re.compile('^rcon from "'+TOKEN['address']+'": Bad Password$', re.U)],
     ['say', re.compile('^"'+TOKEN['player']+'" say "'+TOKEN['message']+'"$', re.U)],
