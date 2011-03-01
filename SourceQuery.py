@@ -223,7 +223,7 @@ class SourceQuery(object):
         if packet.getByte() == A2S_INFO_REPLY:
             result = {}
 
-            result['version'] = packet.getByte()
+            result['network_version'] = packet.getByte()
             result['hostname'] = packet.getString()
             result['map'] = packet.getString()
             result['gamedir'] = packet.getString()
