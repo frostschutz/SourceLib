@@ -38,7 +38,7 @@ PACKETSIZE=1400
 
 TOKEN = {
     'address': '(?P<ip>[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})(|:(?P<port>[0-9]+))',
-    'attacker': '(?P<attacker_name>.*?)<(?P<attacker_uid>[0-9]{1,3}?)><(?P<attacker_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<attacker_team>[^<>"]*)>',
+    'attacker': '(?P<attacker_name>.*?)<(?P<attacker_uid>[0-9]*)><(?P<attacker_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<attacker_team>[^<>"]*)>',
     'class': '(?P<class>[^"]+)',
     'command': '(?P<command>.*)',
     'key': '(?P<key>[^"]+)',
@@ -46,7 +46,7 @@ TOKEN = {
     'message': '(?P<message>.*)',
     'name': '(?P<name>.*)',
     'numplayers': '(?P<numplayers>[0-9]+)',
-    'player': '(?P<player_name>.*?)<(?P<player_uid>[0-9]{1,3}?)><(?P<player_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<player_team>[^<>"]*)>',
+    'player': '(?P<player_name>.*?)<(?P<player_uid>[0-9]*)><(?P<player_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<player_team>[^<>"]*)>',
     'position': '^(?P<x>-?[0-9]+) (?P<y>-?[0-9]+) (?P<z>-?[0-9]+)',
     'property': ' \((?P<property_key>[^() ]+) "(?P<property_value>[^"]*)"\)',
     'propertybug': '(?P<rest>.*" disconnected) \((?P<property_key>reason) "(?P<proprety_value>[^"]*)',
@@ -58,7 +58,7 @@ TOKEN = {
     'trigger': '(?P<trigger>[^"]+)',
     'type': '(?P<type>RL|L) ',
     'value': '(?P<value>.*)',
-    'victim': '(?P<victim_name>.*?)<(?P<victim_uid>[0-9]{1,3}?)><(?P<victim_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<victim_team>[^<>"]*)>',
+    'victim': '(?P<victim_name>.*?)<(?P<victim_uid>[0-9]*)><(?P<victim_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<victim_team>[^<>"]*)>',
     'weapon': '(?P<weapon>[^"]+)',
 }
 
