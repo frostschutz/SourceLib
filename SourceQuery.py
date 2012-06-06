@@ -39,10 +39,12 @@ PACKETSIZE=1400
 WHOLE=-1
 SPLIT=-2
 
+# REMOVED.  DEPRECATED QUERY!
+
 # A2A_PING
-A2A_PING = ord('i')
-A2A_PING_REPLY = ord('j')
-A2A_PING_REPLY_STRING = '00000000000000'
+# A2A_PING = ord('i')
+# A2A_PING_REPLY = ord('j')
+# A2A_PING_REPLY_STRING = '00000000000000'
 
 # A2S_INFO
 A2S_INFO = ord('T')
@@ -194,9 +196,11 @@ class SourceQuery(object):
     def ping(self):
         self.connect()
 
+				# No longer uses A2S_PING (Deprecated).  Uses A2S_INFO.
         packet = SourceQueryPacket()
         packet.putLong(WHOLE)
-        packet.putByte(A2A_PING)
+        packet.putByte(A2S_INFO)
+				packet.putString(A2S_INFO_STRING)
 
         before = time.time()
 
@@ -205,8 +209,7 @@ class SourceQuery(object):
 
         after = time.time()
 
-        if packet.getByte() == A2A_PING_REPLY \
-                and packet.getString() == A2A_PING_REPLY_STRING:
+        if packet.getByte() == A2S_INFO_REPLY:
             return after - before
 
     def info(self):
