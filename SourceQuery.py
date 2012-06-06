@@ -196,11 +196,11 @@ class SourceQuery(object):
     def ping(self):
         self.connect()
 
-		# No longer uses A2S_PING (Deprecated).  Uses A2S_INFO.
+        # No longer uses A2S_PING (Deprecated).  Uses A2S_INFO.
         packet = SourceQueryPacket()
         packet.putLong(WHOLE)
         packet.putByte(A2S_INFO)
-		packet.putString(A2S_INFO_STRING)
+        packet.putString(A2S_INFO_STRING)
 
         before = time.time()
 
