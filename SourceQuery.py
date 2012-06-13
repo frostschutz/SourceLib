@@ -31,7 +31,7 @@
 # TODO:  according to spec, packets may be bzip2 compressed.
 # TODO:: not implemented yet because I couldn't find a server that does this.
 
-import socket, struct, time
+import socket, struct, sys, time
 import StringIO
 
 PACKETSIZE=1400
@@ -194,9 +194,13 @@ class SourceQuery(object):
             return challenge
 
     def ping(self):
+        """Deprecated. Use info()['ping'] instead."""
+        return self.info()['ping']
+
+    def info(self):
+        """Return a dict with server info and ping."""
         self.connect()
 
-        # No longer uses A2S_PING (Deprecated).  Uses A2S_INFO.
         packet = SourceQueryPacket()
         packet.putLong(WHOLE)
         packet.putByte(A2S_INFO)
@@ -210,21 +214,9 @@ class SourceQuery(object):
         after = time.time()
 
         if packet.getByte() == A2S_INFO_REPLY:
-            return after - before
-
-    def info(self):
-        self.connect()
-
-        packet = SourceQueryPacket()
-        packet.putLong(WHOLE)
-        packet.putByte(A2S_INFO)
-        packet.putString(A2S_INFO_STRING)
-
-        self.udp.send(packet.getvalue())
-        packet = self.receive()
-
-        if packet.getByte() == A2S_INFO_REPLY:
             result = {}
+
+            result['ping'] = after - before
 
             result['network_version'] = packet.getByte()
             result['hostname'] = packet.getString()
@@ -244,7 +236,7 @@ class SourceQuery(object):
             # edf may or may not be present
             # contents undefined (see wiki page)
             # this protocol is horrible
-	    try:
+            try:
                 edf = packet.getByte()
                 result['edf'] = edf
 
