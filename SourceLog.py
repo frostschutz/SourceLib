@@ -46,7 +46,7 @@ TOKEN = {
     'message': '(?P<message>.*)',
     'name': '(?P<name>.*)',
     'numplayers': '(?P<numplayers>[0-9]+)',
-    'player': '(?P<player_name>.*?)<(?P<player_uid>[0-9]*)><(?P<player_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<player_team>[^<>"]*)>',
+    'player': '(?P<player_name>.*?)<(?P<player_uid>[0-9]*)><(?P<player_steamid>(Console|BOT|\[U:[01]:[0-9]+\]|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<player_team>[^<>"]*)>',
     'position': '^(?P<x>-?[0-9]+) (?P<y>-?[0-9]+) (?P<z>-?[0-9]+)',
     'property': ' \((?P<property_key>[^() ]+) "(?P<property_value>[^"]*)"\)',
     'propertybug': '(?P<rest>.*" disconnected) \((?P<property_key>reason) "(?P<proprety_value>[^"]*)',
@@ -222,11 +222,11 @@ class SourceLogListener(asyncore.dispatcher):
     def handle_read(self):
         data = self.recv(PACKETSIZE)
 
-        if data.startswith('\xff\xff\xff\xff') and data.endswith('\n\x00'):
+        if data.startswith('\xff\xff\xff\xff') and (data.endswith('\n\x00') or data.endswith('\x00')):
             self.parser.parse(data)
 
         else:
-            raise SourceLogListenerError("Received invalid packet.")
+            raise SourceLogListenerError("Received invalid packet:" + data)
 
     def writable(self):
         return False
