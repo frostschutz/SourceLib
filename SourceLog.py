@@ -38,7 +38,7 @@ PACKETSIZE=1400
 
 TOKEN = {
     'address': '(?P<ip>[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})(|:(?P<port>[0-9]+))',
-    'attacker': '(?P<attacker_name>.*?)<(?P<attacker_uid>[0-9]*)><(?P<attacker_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<attacker_team>[^<>"]*)>',
+    'attacker': '(?P<attacker_name>.*?)<(?P<attacker_uid>[0-9]*)><(?P<attacker_steamid>(Console|BOT|\[U:[01]:[0-9]+\]|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<attacker_team>[^<>"]*)>',
     'class': '(?P<class>[^"]+)',
     'command': '(?P<command>.*)',
     'key': '(?P<key>[^"]+)',
@@ -58,7 +58,7 @@ TOKEN = {
     'trigger': '(?P<trigger>[^"]+)',
     'type': '(?P<type>RL|L) ',
     'value': '(?P<value>.*)',
-    'victim': '(?P<victim_name>.*?)<(?P<victim_uid>[0-9]*)><(?P<victim_steamid>(Console|BOT|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<victim_team>[^<>"]*)>',
+    'victim': '(?P<victim_name>.*?)<(?P<victim_uid>[0-9]*)><(?P<victim_steamid>(Console|BOT|\[U:[01]:[0-9]+\]|STEAM_[01]:[01]:[0-9]{1,12}))><(?P<victim_team>[^<>"]*)>',
     'weapon': '(?P<weapon>[^"]+)',
 }
 
